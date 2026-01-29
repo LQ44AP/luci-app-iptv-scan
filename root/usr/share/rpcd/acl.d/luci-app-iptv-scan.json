@@ -1,0 +1,1 @@
+{ "luci-app-iptv-scan": { "description": "IPTV scan", "read": { "cgi-bin/luci/admin/services/iptv_scan*": [ "exec" ], "file": { "/*": [ "read" ] } }, "write": { "cgi-bin/luci/admin/services/iptv_scan*": [ "exec" ], "file": { "/tmp/iptv_scan.log": [ "write" ], "/www/*": [ "write" ] } } } }

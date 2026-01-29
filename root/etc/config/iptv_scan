@@ -1,0 +1,13 @@
+
+config settings
+	option interface ''
+	option timeout '1.0'
+	list ranges '239.81.0.:4056'
+	list ranges '239.81.1.:4056'
+	option dict_file '/root/iptv_dict.txt'
+	option city_file '/root/city_list.txt'
+	option epg_url ''
+	option m3u_file '/www/iptv.m3u'
+	option txt_file '/www/iptv.txt'
+	option play_prefix 'rtp://'
+

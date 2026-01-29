@@ -1,0 +1,17 @@
+<%+cbi/valueheader%>
+<style>
+    #log_content { width: 100% !important; min-height: 500px; background-color: #ffffff; color: #333333; font-family: monospace; font-size: 13px; padding: 12px; border: 1px solid #cccccc; border-radius: 4px; white-space: pre; overflow: auto; box-sizing: border-box; }
+</style>
+<div style="margin-bottom:10px;"><input type="button" class="cbi-button cbi-button-apply" value="刷新/读取日志" onclick="update_log(this)" /></div>
+<textarea id="log_content" readonly>等待扫描开始...</textarea>
+<script type="text/javascript">//<![CDATA[
+    function update_log(btn) {
+        var area = document.getElementById('log_content');
+        var old_val = btn.value; btn.value = "正在读取..."; btn.disabled = true;
+        XHR.get('<%=luci.dispatcher.build_url("admin", "services", "iptv_scan_getlog")%>', null, function(x, data) {
+            btn.disabled = false; btn.value = old_val;
+            if (x && x.responseText) { area.value = x.responseText; area.scrollTop = area.scrollHeight; }
+        });
+    }
+//]]></script>
+<%+cbi/valuefooter%>
