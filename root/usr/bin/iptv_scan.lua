@@ -260,24 +260,40 @@ local function run_scan()
     local f_txt = io.open(OUTPUT_TXT, "w")
     local bom = "\239\187\191"
     if f_m3u then f_m3u:write(string.format('#EXTM3U x-tvg-url="%s"\n', EPG_URL)) end
-    -- if f_txt then f_txt:write(bom) end
+    
+	local base_path = LOGO_BASE or ""
+    if base_path ~= "" and base_path:sub(-1) ~= "/" then
+        base_path = base_path .. "/"
+    end
+
 
     local last_cat = ""
     for _, item in ipairs(scan_results) do
         local tvg_name = get_pure_tvg_name(item.name)
         
         local logo_attr = ""
-        if LOGO_BASE ~= "" and tvg_name ~= "" then
-            local base = LOGO_BASE:sub(-1) == "/" and LOGO_BASE or LOGO_BASE .. "/"
-            local full_url = base .. tvg_name .. ".png"
-            logo_attr = string.format(' tvg-logo="%s"', full_url)
+        for _, item in ipairs(scan_results) do
+        local tvg_name = get_pure_tvg_name(item.name)
+        
+        local tvg_logo = ""
+        if base_path ~= "" and tvg_name ~= "" then
+            tvg_logo = base_path .. tvg_name .. ".png"
         end
 
         if f_m3u then 
-            f_m3u:write(string.format('#EXTINF:-1 tvg-name="%s"%s group-title="%s",%s\n%s\n', 
-                tvg_name, logo_attr, item.cat_full, item.name, item.url)) 
+            f_m3u:write(string.format('#EXTINF:-1 tvg-name="%s" tvg-logo="%s" group-title="%s",%s\n%s\n', 
+                tvg_name, tvg_logo, item.cat_full, item.name, item.url)) 
+        end
+
+        if f_txt then
+            if item.cat_full ~= last_cat then 
+                f_txt:write("\n" .. item.cat_full .. ",#genre#\n") 
+                last_cat = item.cat_full 
+            end
+            f_txt:write(item.name .. "," .. item.url .. "\n")
         end
     end
+
 
     if f_m3u then f_m3u:close() end
     if f_txt then f_txt:close() end
