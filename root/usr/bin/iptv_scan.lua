@@ -254,11 +254,11 @@ local function run_scan()
     end)
 
     -- 输出文件
-    local f_m3u = io.open(OUTPUT_M3U, "wb")
-    local f_txt = io.open(OUTPUT_TXT, "wb")
+    local f_m3u = io.open(OUTPUT_M3U, "w")
+    local f_txt = io.open(OUTPUT_TXT, "w")
     local bom = "\239\187\191"
-    if f_m3u then f_m3u:write(string.format('%s#EXTM3U x-tvg-url="%s"\n', bom, EPG_URL)) end
-    if f_txt then f_txt:write(bom) end
+    if f_m3u then f_m3u:write(string.format('#EXTM3U x-tvg-url="%s"\n', EPG_URL)) end
+    -- if f_txt then f_txt:write(bom) end
 
     local last_cat = ""
     for _, item in ipairs(scan_results) do
