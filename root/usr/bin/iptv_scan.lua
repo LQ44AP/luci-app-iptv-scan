@@ -266,7 +266,6 @@ local function run_scan()
         base_path = base_path .. "/"
     end
 
-
     local last_cat = ""
     for _, item in ipairs(scan_results) do
         local tvg_name = get_pure_tvg_name(item.name)      
