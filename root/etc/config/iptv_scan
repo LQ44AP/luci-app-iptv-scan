@@ -7,6 +7,7 @@ config settings
 	option dict_file '/root/iptv_dict.txt'
 	option city_file '/root/city_list.txt'
 	option epg_url ''
+	option logo_base ''
 	option m3u_file '/www/iptv.m3u'
 	option txt_file '/www/iptv.txt'
 	option play_prefix 'rtp://'
