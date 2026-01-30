@@ -16,6 +16,8 @@ EPG_URL = (EPG_URL and EPG_URL ~= "") and EPG_URL or "https://gitee.com/taksssss
 local LOGO_BASE = uci:get("iptv_scan", section, "logo_base")
 LOGO_BASE = (LOGO_BASE and LOGO_BASE ~= "") and LOGO_BASE or ""
 
+local OUTPUT_M3U_HD   = OUTPUT_M3U:gsub("%.m3u$", "_hd.m3u")
+
 local LOCK_FILE = "/tmp/iptv_scan.lock"
 
 local function log(msg)
@@ -24,7 +26,6 @@ local function log(msg)
 end
 
 -- ================= 文件锁逻辑 =================
-
 local function acquire_lock()
     local f = io.open(LOCK_FILE, "r")
     if f then
@@ -179,7 +180,6 @@ local function get_interface_robust(name)
 end
 
 -- ==================== 核心扫描函数 ====================
-
 local function run_scan()
     local start_time = os.time()
     local total_found, total_scanned = 0, 0
@@ -257,9 +257,11 @@ local function run_scan()
 
     -- 输出文件
     local f_m3u = io.open(OUTPUT_M3U, "w")
+    local f_m3u_hd = io.open(OUTPUT_M3U_HD, "w")
     local f_txt = io.open(OUTPUT_TXT, "w")
     local bom = "\239\187\191"
     if f_m3u then f_m3u:write(string.format('#EXTM3U x-tvg-url="%s"\n', EPG_URL)) end
+    if f_m3u_hd then f_m3u_hd:write(string.format('#EXTM3U x-tvg-url="%s"\n', EPG_URL)) end
     
 	local base_path = LOGO_BASE or ""
     if base_path ~= "" and base_path:sub(-1) ~= "/" then
@@ -280,6 +282,21 @@ local function run_scan()
                 tvg_name, tvg_logo, item.cat_full, item.name, item.url)) 
         end
 
+        if f_m3u_hd and not item.cat_full:find("标清") then
+            local clean_name = item.name
+
+            local p_list = { "[%[%‍%(（【《]?[Hh][Dd][%]%]%)）】》]?", "[%[%‍%(（【《]?高清[%]%]%)）】》]?",
+                "[%-%s/—_]+[Hh][Dd]", "[%-%s/—_]+高清" }
+            for _, p in ipairs(p_list) do clean_name = clean_name:gsub(p, "") end
+
+            clean_name = clean_name:match("^[%s%p]*(.-)[%s%p]*$") or clean_name
+
+            local clean_cat = item.cat_full:gsub("%-高清", ""):gsub("%-HD", "")            
+
+            f_m3u_hd:write(string.format('#EXTINF:-1 tvg-name="%s" tvg-logo="%s" group-title="%s",%s\n%s\n', 
+                tvg_name, tvg_logo, clean_cat, clean_name, item.url))
+        end
+
         if f_txt then
             if item.cat_full ~= last_cat then 
                 f_txt:write("\n" .. item.cat_full .. ",#genre#\n") 
@@ -291,6 +308,7 @@ local function run_scan()
 
 
     if f_m3u then f_m3u:close() end
+    if f_m3u_hd then f_m3u_hd:close() end
     if f_txt then f_txt:close() end
     
     log("\n--------------- 统计报告 ---------------")
@@ -299,6 +317,8 @@ local function run_scan()
     for _, res in ipairs(range_stats) do 
         log("  - 网段 [" .. res.range .. "] : 发现 " .. res.found .. " 个频道") 
     end
+    log("  >> 全量文件: " .. OUTPUT_M3U)
+    log("  >> 高清文件: " .. OUTPUT_M3U_HD)
     log("===========================================")
 end
 
