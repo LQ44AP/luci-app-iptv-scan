@@ -34,6 +34,10 @@ city.default = "/root/city_list.txt"
 epg = s:taboption("basic", Value, "epg_url", "EPG 源地址", "用于 M3U 文件头的 x-tvg-url")
 epg.default = "https://gitee.com/taksssss/tv/raw/main/epg/51zmt.xml.gz"
 
+logo = s:taboption("basic", Value, "logo_base", "图标基础路径", "用于拼接 tvg-logo。可以是 URL (如 http://addr/ ) 或本地路径。")
+logo.default = "https://gcore.jsdelivr.net/gh/taksssss/tv/icon/"
+logo.placeholder = "https://gcore.jsdelivr.net/gh/taksssss/tv/icon/"
+
 m3u = s:taboption("basic", Value, "m3u_file", "M3U 路径")
 m3u.datatype = "string"
 m3u.default = "/www/iptv.m3u"
