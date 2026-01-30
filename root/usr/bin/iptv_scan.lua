@@ -13,6 +13,8 @@ local PLAY_PREFIX    = uci:get("iptv_scan", section, "play_prefix")
 PLAY_PREFIX = (PLAY_PREFIX and PLAY_PREFIX ~= "") and PLAY_PREFIX or "rtp://"
 local EPG_URL = uci:get("iptv_scan", section, "epg_url")
 EPG_URL = (EPG_URL and EPG_URL ~= "") and EPG_URL or "https://gitee.com/taksssss/tv/raw/main/epg/51zmt.xml.gz"
+local LOGO_BASE = uci:get("iptv_scan", section, "logo_base")
+LOGO_BASE = (LOGO_BASE and LOGO_BASE ~= "") and LOGO_BASE or ""
 
 local LOCK_FILE = "/tmp/iptv_scan.lock"
 
@@ -263,13 +265,15 @@ local function run_scan()
     local last_cat = ""
     for _, item in ipairs(scan_results) do
         local tvg_name = get_pure_tvg_name(item.name)
-        if f_m3u then 
-            f_m3u:write(string.format('#EXTINF:-1 tvg-name="%s" group-title="%s",%s\n%s\n', 
-                tvg_name, item.cat_full, item.name, item.url)) 
+        local tvg_logo = ""
+        if LOGO_BASE ~= "" and tvg_name ~= "" then
+            local base = LOGO_BASE:sub(-1) == "/" and LOGO_BASE or LOGO_BASE .. "/"
+            tvg_logo = base .. tvg_name .. ".png"
         end
-        if f_txt then
-            if item.cat_full ~= last_cat then f_txt:write("\n" .. item.cat_full .. ",#genre#\n") last_cat = item.cat_full end
-            f_txt:write(item.name .. "," .. item.url .. "\n")
+
+        if f_m3u then 
+            f_m3u:write(string.format('#EXTINF:-1 tvg-name="%s" tvg-logo="%s" group-title="%s",%s\n%s\n', 
+                tvg_name, tvg_logo, item.cat_full, item.name, item.url)) 
         end
     end
 
