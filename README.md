@@ -1,1 +1,1 @@
-OpenWrt扫描IPTV频道
+OpenWrt扫描IPTV组播频道
