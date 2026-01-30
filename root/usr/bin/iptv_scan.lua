@@ -265,15 +265,17 @@ local function run_scan()
     local last_cat = ""
     for _, item in ipairs(scan_results) do
         local tvg_name = get_pure_tvg_name(item.name)
-        local tvg_logo = ""
+        
+        local logo_attr = ""
         if LOGO_BASE ~= "" and tvg_name ~= "" then
             local base = LOGO_BASE:sub(-1) == "/" and LOGO_BASE or LOGO_BASE .. "/"
-            tvg_logo = base .. tvg_name .. ".png"
+            local full_url = base .. tvg_name .. ".png"
+            logo_attr = string.format(' tvg-logo="%s"', full_url)
         end
 
         if f_m3u then 
-            f_m3u:write(string.format('#EXTINF:-1 tvg-name="%s" tvg-logo="%s" group-title="%s",%s\n%s\n', 
-                tvg_name, tvg_logo, item.cat_full, item.name, item.url)) 
+            f_m3u:write(string.format('#EXTINF:-1 tvg-name="%s"%s group-title="%s",%s\n%s\n', 
+                tvg_name, logo_attr, item.cat_full, item.name, item.url)) 
         end
     end
 
