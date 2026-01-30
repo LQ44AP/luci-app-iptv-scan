@@ -269,12 +269,8 @@ local function run_scan()
 
     local last_cat = ""
     for _, item in ipairs(scan_results) do
-        local tvg_name = get_pure_tvg_name(item.name)
-        
-        local logo_attr = ""
-        for _, item in ipairs(scan_results) do
-        local tvg_name = get_pure_tvg_name(item.name)
-        
+        local tvg_name = get_pure_tvg_name(item.name)      
+       
         local tvg_logo = ""
         if base_path ~= "" and tvg_name ~= "" then
             tvg_logo = base_path .. tvg_name .. ".png"
