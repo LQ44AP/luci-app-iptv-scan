@@ -201,40 +201,61 @@ local function run_scan()
     
     local RAW_RANGES = uci:get("iptv_scan", "@settings[0]", "ranges")
     local TASKS = {}
-    if type(RAW_RANGES) == "table" then TASKS = RAW_RANGES
-    elseif type(RAW_RANGES) == "string" then table.insert(TASKS, RAW_RANGES) end
-
+    if not RAW_RANGES or (type(RAW_RANGES) == "string" and RAW_RANGES == "") then
+        log("[错误] 待扫描网段配置为空，请检查配置文件。")
+        return
+    end
+    if type(RAW_RANGES) == "table" then 
+        TASKS = RAW_RANGES
+    elseif type(RAW_RANGES) == "string" then 
+        table.insert(TASKS, RAW_RANGES) 
+    end
+    local validated_tasks = {}
     for _, val in ipairs(TASKS) do
-        local prefix, port = val:match("([^:]+):(%d+)")
+        local prefix, port = val:match("^(%d+%.%d+%.%d+%.)%:(%d+)$")        
         if prefix and port then
-            local r_found = 0
-            log("[扫描] 网段: " .. prefix .. "X:" .. port)
-            for i = 1, 255 do
-                total_scanned = total_scanned + 1
-                local target_ip = prefix .. i
-                local key = target_ip .. ":" .. port
-                local udp = socket.udp()
-                udp:settimeout(TIMEOUT)
-                udp:setsockname("0.0.0.0", port)
-                if udp:setoption("ip-add-membership", {multiaddr = target_ip, interface = net.ip}) then
-                    local data = udp:receive()
-                    if data and (string.byte(data, 1) == 0x80 or data:sub(1,1):find("\x47")) then
-                        r_found = r_found + 1
-                        total_found = total_found + 1
-                        local cname = name_dict[key] or ("未识别-" .. target_ip)
-                        local cat = get_category(cname)
-                        local q = get_quality(cname)
-                        table.insert(scan_results, {
-                            name = cname, url = PLAY_PREFIX .. key,
-                            cat_full = cat .. "-" .. q, sort_key = cat .. q .. cname
-                        })
-                        log("  >> [√] " .. cname .. " [" .. q .. "]")
-                    end
-                end
-                udp:close()
-            end
-            table.insert(range_stats, { range = val, found = r_found })
+            table.insert(validated_tasks, {prefix = prefix, port = tonumber(port)})
+        else
+            log("[警告] 网段格式错误，已忽略: " .. tostring(val))
         end
+    end
+    if #validated_tasks == 0 then
+        log("[错误] 未发现合法的扫描任务，任务终止。格式: 239.81.0.:8000")
+        return
+    end
+
+for _, task in ipairs(validated_tasks) do
+        local prefix, port = task.prefix, task.port
+        local r_found = 0
+        log("[扫描] 网段: " .. prefix .. "X:" .. port)        
+        for i = 1, 255 do
+            total_scanned = total_scanned + 1
+            local target_ip = prefix .. i
+            local key = target_ip .. ":" .. port
+            local udp = socket.udp()
+            udp:settimeout(TIMEOUT)
+            udp:setsockname("0.0.0.0", port)
+            
+            if udp:setoption("ip-add-membership", {multiaddr = target_ip, interface = net.ip}) then
+                local data = udp:receive()
+                if data and (string.byte(data, 1) == 0x80 or data:sub(1,1):find("\x47")) then
+                    r_found = r_found + 1
+                    total_found = total_found + 1
+                    local cname = name_dict[key] or ("未识别-" .. target_ip)
+                    local cat = get_category(cname)
+                    local q = get_quality(cname)
+                    table.insert(scan_results, {
+                        name = cname, 
+                        url = PLAY_PREFIX .. key,
+                        cat_full = cat .. "-" .. q, 
+                        sort_key = cat .. q .. cname
+                    })
+                    log("  >> [√] " .. cname .. " [" .. q .. "]")
+                end
+            end
+            udp:close()
+        end
+        table.insert(range_stats, { range = prefix .. "X:" .. port, found = r_found })
     end
 
     -- 自然排序逻辑
