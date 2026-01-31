@@ -194,19 +194,34 @@ local function run_scan()
         return
     end
 
+    local RAW_RANGES = uci:get("iptv_scan", section, "ranges")
+    local TASKS = {}
+    if type(RAW_RANGES) == "table" then
+        TASKS = RAW_RANGES
+    elseif type(RAW_RANGES) == "string" and RAW_RANGES ~= "" then
+        table.insert(TASKS, RAW_RANGES)
+    end
+
+    local valid_tasks = {}
+    for _, val in ipairs(TASKS) do
+        local prefix, port = val:match("([^:]+):(%d+)")
+        if prefix and port then
+            table.insert(valid_tasks, {prefix = prefix, port = port, raw = val})
+        end
+    end
+
+    if #valid_tasks == 0 then
+        log("[错误] 未配置扫描网段或格式全部错误 (示例: 239.1.1.:8000)，终止。")
+        return
+    end
+
     log("[网络] 接口: " .. net.device .. " | IP: " .. net.ip)
 
     CITY_LIST = load_cities(CITY_FILE)
     local name_dict = load_dict(DICT_FILE)
     
-    local RAW_RANGES = uci:get("iptv_scan", "@settings[0]", "ranges")
-    local TASKS = {}
-    if type(RAW_RANGES) == "table" then TASKS = RAW_RANGES
-    elseif type(RAW_RANGES) == "string" then table.insert(TASKS, RAW_RANGES) end
-
-    for _, val in ipairs(TASKS) do
-        local prefix, port = val:match("([^:]+):(%d+)")
-        if prefix and port then
+        for _, task in ipairs(valid_tasks) do
+            local prefix, port = task.prefix, task.port
             local r_found = 0
             log("[扫描] 网段: " .. prefix .. "X:" .. port)
             for i = 1, 255 do
@@ -233,9 +248,8 @@ local function run_scan()
                 end
                 udp:close()
             end
-            table.insert(range_stats, { range = val, found = r_found })
+            table.insert(range_stats, { range = task.raw, found = r_found })
         end
-    end
 
     -- 自然排序逻辑
     table.sort(scan_results, function(a, b)
