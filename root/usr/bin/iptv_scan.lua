@@ -12,7 +12,7 @@ local OUTPUT_TXT      = uci:get("iptv_scan", section, "txt_file") or "/www/iptv.
 local PLAY_PREFIX    = uci:get("iptv_scan", section, "play_prefix")
 PLAY_PREFIX = (PLAY_PREFIX and PLAY_PREFIX ~= "") and PLAY_PREFIX or "rtp://"
 local EPG_URL = uci:get("iptv_scan", section, "epg_url")
-EPG_URL = (EPG_URL and EPG_URL ~= "") and EPG_URL or "https://gitee.com/taksssss/tv/raw/main/epg/51zmt.xml.gz"
+EPG_URL = (EPG_URL and EPG_URL ~= "") and EPG_URL or ""
 local LOGO_BASE = uci:get("iptv_scan", section, "logo_base")
 LOGO_BASE = (LOGO_BASE and LOGO_BASE ~= "") and LOGO_BASE or ""
 
@@ -291,31 +291,34 @@ for _, task in ipairs(validated_tasks) do
 
     local last_cat = ""
     for _, item in ipairs(scan_results) do
-        local tvg_name = get_pure_tvg_name(item.name)      
-       
-        local tvg_logo = ""
-        if base_path ~= "" and tvg_name ~= "" then
-            tvg_logo = base_path .. tvg_name .. ".png"
+        local pure_name = get_pure_tvg_name(item.name)      
+        
+        local name_attr = ""
+        if pure_name ~= "" then
+            name_attr = string.format(' tvg-name="%s"', pure_name)
+        end
+
+        local logo_attr = ""
+        if base_path ~= "" and pure_name ~= "" then
+            logo_attr = string.format(' tvg-logo="%s%s.png"', base_path, pure_name)
         end
 
         if f_m3u then 
-            f_m3u:write(string.format('#EXTINF:-1 tvg-name="%s" tvg-logo="%s" group-title="%s",%s\n%s\n', 
-                tvg_name, tvg_logo, item.cat_full, item.name, item.url)) 
+            f_m3u:write(string.format('#EXTINF:-1%s%s group-title="%s",%s\n%s\n', 
+                name_attr, logo_attr, item.cat_full, item.name, item.url)) 
         end
 
         if f_m3u_hd and not item.cat_full:find("标清") then
             local clean_name = item.name
-
             local p_list = { "[%[%‍%(（【《]?[Hh][Dd][%]%]%)）】》]?", "[%[%‍%(（【《]?高清[%]%]%)）】》]?",
-                "[%-%s/—_]+[Hh][Dd]", "[%-%s/—_]+高清" }
+                             "[%-%s/—_]+[Hh][Dd]", "[%-%s/—_]+高清" }
             for _, p in ipairs(p_list) do clean_name = clean_name:gsub(p, "") end
-
             clean_name = clean_name:match("^[%s%p]*(.-)[%s%p]*$") or clean_name
 
             local clean_cat = item.cat_full:gsub("%-高清", ""):gsub("%-HD", "")            
 
-            f_m3u_hd:write(string.format('#EXTINF:-1 tvg-name="%s" tvg-logo="%s" group-title="%s",%s\n%s\n', 
-                tvg_name, tvg_logo, clean_cat, clean_name, item.url))
+            f_m3u_hd:write(string.format('#EXTINF:-1%s%s group-title="%s",%s\n%s\n', 
+                name_attr, logo_attr, clean_cat, clean_name, item.url))
         end
 
         if f_txt then
