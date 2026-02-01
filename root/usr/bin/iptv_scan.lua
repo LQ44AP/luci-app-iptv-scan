@@ -97,7 +97,7 @@ local function load_cities(path)
     local list = {}
     local f = io.open(path, "r")
     if not f then
-	log("[警告] 城市列表文件不存在: " .. path)
+	log("[警告] 城市列表文件不存在，地方频道可能无法正确归类 ：" .. path)
 	return list end
     for line in f:lines() do
         local c = line:gsub("%s+", "")
@@ -113,7 +113,7 @@ local function load_dict(path)
     if not path or path == "" then return dict end
     local f = io.open(path, "r")
     if not f then
-        log('[系统] 字典文件未找到，扫描结果将显示为“未识别”。')
+        log('[警告] 字典文件未找到，扫描结果将显示为“未识别” ：' .. path)
         return dict 
     end
 
