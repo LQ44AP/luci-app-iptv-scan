@@ -113,7 +113,7 @@ local function load_dict(path)
     if not path or path == "" then return dict end
     local f = io.open(path, "r")
     if not f then
-        log("[系统] 字典文件未找到，将使用默认命名。")
+        log("[系统] 字典文件未找到，扫描结果将显示为“未识别”。。")
         return dict 
     end
 
