@@ -56,10 +56,16 @@ run.inputtitle = "开始扫描"
 run.inputstyle = "apply"
 function run.write(self, section)
     if luci.http.formvalue(self:cbid(section)) then
-        local is_running = luci.sys.call("pgrep -f iptv_scan.lua > /dev/null") == 0
+        local pid = luci.sys.exec("cat /tmp/iptv_scan.lock 2>/dev/null"):gsub("%s+", "")
+        local is_running = false
+        if pid ~= "" then
+            is_running = luci.sys.call("kill -0 " .. pid .. " 2>/dev/null") == 0
+        end
+
         if is_running then
-            luci.sys.call("echo \"[警告] 扫描任务已经在运行中...\" >> /tmp/iptv_scan.log")
+            luci.sys.call("echo \"[警告] 扫描任务 (PID: " .. pid .. ") 已经在运行中...\" >> /tmp/iptv_scan.log")
         else
+            luci.sys.call("rm -f /tmp/iptv_scan.lock")
             luci.sys.call("echo \"[系统] 正在启动任务...\" > /tmp/iptv_scan.log")
             luci.sys.call("/usr/bin/lua /usr/bin/iptv_scan.lua >> /tmp/iptv_scan.log 2>&1 &")
         end
@@ -72,9 +78,17 @@ stop.inputtitle = "停止扫描"
 stop.inputstyle = "reset"
 function stop.write(self, section)
     if luci.http.formvalue(self:cbid(section)) then
-        luci.sys.call("pkill -9 -f iptv_scan.lua >/dev/null 2>&1")
-        luci.sys.call("rm -f /tmp/iptv_scan.lock")
-        luci.sys.call("echo \"[系统] 已强制停止所有扫描进程。\" >> /tmp/iptv_scan.log")
+        local pid = luci.sys.exec("cat /tmp/iptv_scan.lock 2>/dev/null"):gsub("%s+", "")      
+        if pid ~= "" and pid:match("^%d+$") then
+            luci.sys.call("kill -9 " .. pid .. " >/dev/null 2>&1")
+            luci.sys.call("pkill -9 -f iptv_scan.lua >/dev/null 2>&1")            
+            luci.sys.call("rm -f /tmp/iptv_scan.lock")
+            luci.sys.call("echo \"[系统] 已强制停止 PID 为 " .. pid .. " 的扫描进程。\" >> /tmp/iptv_scan.log")
+        else
+            luci.sys.call("pkill -9 -f iptv_scan.lua >/dev/null 2>&1")
+            luci.sys.call("rm -f /tmp/iptv_scan.lock")
+            luci.sys.call("echo \"[系统] 未发现锁文件，已尝试清理残留进程。\" >> /tmp/iptv_scan.log")
+        end
         luci.http.header("Referer", luci.http.getenv("HTTP_REFERER"))
     end
 end
