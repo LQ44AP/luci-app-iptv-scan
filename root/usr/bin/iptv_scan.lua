@@ -162,22 +162,34 @@ local function get_quality(name)
 end
 
 local function get_interface_robust(name)
-    local info = { device = nil, ip = "0.0.0.0" }
+    local info = { device = nil, ip = "0.0.0.0", error = nil }
+	
+    if not name or name == "" then
+        info.error = "未配置扫描接口，请选择接口（如 eth0, 或 wan）。"
+        return info
+    end
+
     local handle = io.popen("ubus call network.interface." .. name .. " status 2>/dev/null")
     local res = handle:read("*a")
     handle:close()
-    if res and res ~= "" then
+	
+    if res and res ~= "" and res ~= "{}" then
         info.device = res:match('\"l3_device\":%s*\"([^%s\"]+)\"')
         info.ip = res:match('\"address\":%s*\"(%d+%.%d+%.%d+%.%d+)\"')
     end
-    if not info.device then info.device = name end
+
     if not info.ip or info.ip == "0.0.0.0" then
-        local f = io.popen("ifconfig " .. info.device .. " 2>/dev/null")
+        local f = io.popen("ifconfig " .. name .. " 2>/dev/null")
         if f then
             local out = f:read("*all")
             f:close()
             info.ip = out:match("inet addr:(%d+%.%d+%.%d+%.%d+)") or out:match("inet (%d+%.%d+%.%d+%.%d+)")
+            info.device = name
         end
+    end
+
+    if not info.ip or info.ip == "0.0.0.0" then
+        info.error = "接口 [" .. name .. "] 无法获取 IP。请确保接口已连接并获得地址。"
     end
     return info
 end
@@ -191,9 +203,11 @@ local function run_scan()
     log("========================================")
     log("任务启动: " .. os.date())
     
-    local net = get_interface_robust(INTERFACE_NAME)
-    if not net.ip or net.ip == "0.0.0.0" then
-        log("[警告] 接口 " .. net.device .. " 未获取到有效 IP，终止扫描。")
+    local net = get_interface_robust(INTERFACE_NAME)    
+    if net.error then
+        log("\n[错误] " .. net.error)
+        log("[失败] 扫描任务终止。")
+        log("========================================")
         return
     end
 
