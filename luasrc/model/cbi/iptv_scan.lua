@@ -21,7 +21,7 @@ timeout = s:taboption("basic", Value, "timeout", "超时(秒)")
 timeout.default = "1.0"
 timeout.datatype = "string" 
 
-ranges = s:taboption("basic", DynamicList, "ranges", "网段范围", "格式 - 前缀:端口 (例: 239.1.0:8000)")
+ranges = s:taboption("basic", DynamicList, "ranges", "待扫描网段", "格式 - 前缀:端口 (例: 239.1.0:8000)")
 
 dict = s:taboption("basic", Value, "dict_file", "字典路径", "频道名称匹配库 (.txt), 内容格式:  频道名,rtp://ip:端口")
 dict.datatype = "string"
