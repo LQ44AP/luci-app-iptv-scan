@@ -37,18 +37,21 @@ local function acquire_lock()
                 return false
             end
         end
+        os.remove(LOCK_FILE)
     end
 
-    local handle = io.popen("echo -n $$")
-    local my_pid = handle:read("*a")
-    handle:close()
-    
+    local my_pid = io.popen("pgrep -f 'lua /usr/bin/iptv_scan.lua' | head -n 1"):read("*a"):gsub("%s+", "")
+    if my_pid == "" then
+        my_pid = io.popen("sh -c 'echo $PPID'"):read("*a"):gsub("%s+", "")
+    end
+
     f = io.open(LOCK_FILE, "w")
     if f then
-        f:write(my_pid or "running")
+        f:write(my_pid)
         f:close()
+        return true
     end
-    return true
+    return false
 end
 
 local function release_lock()
@@ -350,11 +353,12 @@ end
 
 local function main()
     if not acquire_lock() then
-        log("\n[拒绝] 检测到扫描任务已在运行中(PID 锁激活)，请勿重复启动。")
+        log("\n[拒绝] 扫描任务已在运行中，请勿重复启动。")
         return
     end
 
     local status, err = pcall(run_scan)
+    
     if not status then
         log("\n[致命错误] 脚本崩溃: " .. tostring(err))
     end
