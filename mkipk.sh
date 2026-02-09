@@ -328,8 +328,20 @@ for _, task in ipairs(validated_tasks) do
     local f_m3u_hd = io.open(OUTPUT_M3U_HD, "w")
     local f_txt = io.open(OUTPUT_TXT, "w")
     local bom = "\239\187\191"
-    if f_m3u then f_m3u:write(string.format('#EXTM3U x-tvg-url="%s"\n', EPG_URL)) end
-    if f_m3u_hd then f_m3u_hd:write(string.format('#EXTM3U x-tvg-url="%s"\n', EPG_URL)) end
+    if f_m3u then
+    	if EPG_URL and EPG_URL ~= "" then
+        	f_m3u:write(string.format('#EXTM3U x-tvg-url="%s"\n', EPG_URL))
+    	else
+        	f_m3u:write('#EXTM3U\n')
+    	end
+	end
+	if f_m3u_hd then
+    	if EPG_URL and EPG_URL ~= "" then
+        	f_m3u_hd:write(string.format('#EXTM3U x-tvg-url="%s"\n', EPG_URL))
+    	else
+        	f_m3u_hd:write('#EXTM3U\n')
+    	end
+	end
     
 	local base_path = LOGO_BASE or ""
     if base_path ~= "" and base_path:sub(-1) ~= "/" then
