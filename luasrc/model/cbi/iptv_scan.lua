@@ -3,6 +3,13 @@ local m, s, iface, timeout, ranges, dict, city, m3u, txt, epg, run, stop
 m = Map("iptv_scan", "IPTV 组播频道扫描", 
     "修改配置后请点击‘保存并应用’再开始扫描。")
 
+-- 导入 dispatcher 构建状态检查 URL
+local dispatcher = require "luci.dispatcher"
+local status_url = dispatcher.build_url("admin", "services", "iptv_scan_status")
+if not status_url or status_url == "" then
+    status_url = "/cgi-bin/luci/admin/services/iptv_scan_status"
+end
+
 s = m:section(TypedSection, "settings")
 s.anonymous = true
 s:tab("basic", "基础配置")
@@ -97,5 +104,10 @@ end
 
 log_view = s:taboption("log", DummyValue, "_log")
 log_view.template = "cbi/log_view"
+
+local confirm_placeholder = s:taboption("log", DummyValue, "_confirm", "")
+confirm_placeholder.template = "cbi/confirm"
+
+m:append(confirm_script)
 
 return m
