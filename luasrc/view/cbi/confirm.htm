@@ -1,0 +1,56 @@
+<%+cbi/valueheader%>
+<script type="text/javascript">
+//<![CDATA[
+document.addEventListener('DOMContentLoaded', function() {
+    function addConfirm(btnSelector, message, checkRunning) {
+        var btn = document.querySelector(btnSelector);
+        if (!btn) return;
+
+        btn.addEventListener('click', function(e) {
+            if (checkRunning) {
+                e.preventDefault();                     // 阻止默认提交
+                var form = btn.form;
+                btn.disabled = true;                     // 防止重复点击
+
+                XHR.get('<%=luci.dispatcher.build_url("admin", "services", "iptv_scan_status")%>', null, function(x) {
+                    btn.disabled = false;
+                    if (x && x.status == 200) {
+                        try {
+                            var resp = JSON.parse(x.responseText);
+                            if (resp.running) {
+                                alert('扫描任务已在运行中，请勿重复启动！');
+                            } else {
+                                if (confirm(message)) {
+                                    // 创建与按钮同名的隐藏域，确保后端能识别按钮
+                                    var hidden = document.createElement('input');
+                                    hidden.type = 'hidden';
+                                    hidden.name = btn.name;
+                                    hidden.value = btn.value;
+                                    form.appendChild(hidden);
+                                    form.submit();       // 提交表单
+                                }
+                            }
+                        } catch (e) {
+                            alert('状态解析失败，请重试。');
+                        }
+                    } else {
+                        alert('无法连接到服务器，请检查网络。');
+                    }
+                });
+            } else {
+                // 停止扫描：直接弹出确认，不检查状态
+                if (!confirm(message)) {
+                    e.preventDefault();
+                    return false;
+                }
+                // 确认后保持默认提交行为（不阻止）
+            }
+        });
+    }
+
+    addConfirm('input[type="submit"][value="开始扫描"]', '确定开始扫描吗？', true);
+    addConfirm('input[type="submit"][value="停止扫描"]', '确定停止扫描吗？', false);
+});
+//]]>
+</script>
+<%+cbi/valuefooter%>
