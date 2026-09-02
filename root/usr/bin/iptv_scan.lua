@@ -4,11 +4,11 @@ local uci = require("luci.model.uci").cursor()
 
 local section = "@settings[0]"
 local INTERFACE_NAME = uci:get("iptv_scan", section, "interface")
-local TIMEOUT        = tonumber(uci:get("iptv_scan", section, "timeout")) or 1.0
+local TIMEOUT        = tonumber(uci:get("iptv_scan", section, "timeout")) or 0.3
 local DICT_FILE      = uci:get("iptv_scan", section, "dict_file") or "/root/iptv_dict.txt"
 local CITY_FILE      = uci:get("iptv_scan", section, "city_file") or "/root/city_list.txt"
-local OUTPUT_M3U      = uci:get("iptv_scan", section, "m3u_file") or "/www/iptv.m3u"
-local OUTPUT_TXT      = uci:get("iptv_scan", section, "txt_file") or "/www/iptv.txt"
+local OUTPUT_M3U     = uci:get("iptv_scan", section, "m3u_file") or "/www/iptv.m3u"
+local OUTPUT_TXT     = uci:get("iptv_scan", section, "txt_file") or "/www/iptv.txt"
 local PLAY_PREFIX    = uci:get("iptv_scan", section, "play_prefix")
 PLAY_PREFIX = (PLAY_PREFIX and PLAY_PREFIX ~= "") and PLAY_PREFIX or "rtp://"
 local EPG_URL = uci:get("iptv_scan", section, "epg_url")
@@ -17,7 +17,6 @@ local LOGO_BASE = uci:get("iptv_scan", section, "logo_base")
 LOGO_BASE = (LOGO_BASE and LOGO_BASE ~= "") and LOGO_BASE or ""
 
 local OUTPUT_M3U_HD   = OUTPUT_M3U:gsub("%.m3u$", "_hd.m3u")
-
 local LOCK_FILE = "/tmp/iptv_scan.lock"
 
 local function log(msg)
@@ -40,10 +39,7 @@ local function acquire_lock()
         os.remove(LOCK_FILE)
     end
 
-    local my_pid = io.popen("pgrep -f 'lua /usr/bin/iptv_scan.lua' | head -n 1"):read("*a"):gsub("%s+", "")
-    if my_pid == "" then
-        my_pid = io.popen("sh -c 'echo $PPID'"):read("*a"):gsub("%s+", "")
-    end
+    local my_pid = io.popen("sh -c 'echo $$'"):read("*a"):gsub("%s+", "")
 
     f = io.open(LOCK_FILE, "w")
     if f then
@@ -65,17 +61,17 @@ local function get_pure_tvg_name(name)
     n = n:gsub("CCTV[%-%s]?4K", "PROTECTCCTVFOURK")
     n = n:gsub("CCTV[%-%s]?5%+", "PROTECTCCTVFIVEPLUS")
     n = n:gsub("爱上4K", "PROFOURK")
-	n = n:gsub("茶频道", "PROCHA")
+    n = n:gsub("茶频道", "PROCHA")
     local keywords = {"奥林匹克", "超高清", "高清", "标清", "频道", "字幕", "UHD", "FHD", "4K", "8K", "HD"}
     for _, k in ipairs(keywords) do n = n:gsub(k, "") end
-	if n:find("CCTV") then n = n:gsub("[\128-\255]+", "") end
+    if n:find("CCTV") then n = n:gsub("[\128-\255]+", "") end
     local symbols = {"·", "—", "｜", "“", "”", "▲", "★"}
     for _, s in ipairs(symbols) do n = n:gsub(s, "") end
     n = n:gsub("[%p%s]", "")
     n = n:gsub("PROTECTCCTVFOURK", "CCTV4K")
     n = n:gsub("PROTECTCCTVFIVEPLUS", "CCTV5+")
     n = n:gsub("PROFOURK", "爱上4K")
-	n = n:gsub("PROCHA", "茶频道")
+    n = n:gsub("PROCHA", "茶频道")
     return n
 end
 
@@ -100,8 +96,9 @@ local function load_cities(path)
     local list = {}
     local f = io.open(path, "r")
     if not f then
-	log("[警告] 城市列表文件不存在，地方频道可能无法正确归类 ：" .. path)
-	return list end
+        log("[警告] 城市列表文件不存在，地方频道可能无法正确归类 ：" .. path)
+        return list 
+    end
     for line in f:lines() do
         local c = line:gsub("%s+", "")
         if c ~= "" then table.insert(list, c) end
@@ -163,7 +160,7 @@ end
 
 local function get_interface_robust(name)
     local info = { device = nil, ip = "0.0.0.0", error = nil }
-	
+    
     if not name or name == "" then
         info.error = "未配置扫描接口，请选择接口（如 eth0, 或 wan）。"
         return info
@@ -172,7 +169,7 @@ local function get_interface_robust(name)
     local handle = io.popen("ubus call network.interface." .. name .. " status 2>/dev/null")
     local res = handle:read("*a")
     handle:close()
-	
+    
     if res and res ~= "" and res ~= "{}" then
         info.device = res:match('\"l3_device\":%s*\"([^%s\"]+)\"')
         info.ip = res:match('\"address\":%s*\"(%d+%.%d+%.%d+%.%d+)\"')
@@ -241,7 +238,7 @@ local function run_scan()
         return
     end
 
-for _, task in ipairs(validated_tasks) do
+    for _, task in ipairs(validated_tasks) do
         local prefix, port = task.prefix, task.port
         local r_found = 0
         log("[扫描] 网段: " .. prefix .. "X:" .. port)        
@@ -255,6 +252,7 @@ for _, task in ipairs(validated_tasks) do
             
             if udp:setoption("ip-add-membership", {multiaddr = target_ip, interface = net.ip}) then
                 local data = udp:receive()
+                -- 检查 RTP (0x80) 或 TS 流同步头 ('G' / 0x47)
                 if data and (string.byte(data, 1) == 0x80 or data:sub(1,1):find("\x47")) then
                     r_found = r_found + 1
                     total_found = total_found + 1
@@ -297,24 +295,29 @@ for _, task in ipairs(validated_tasks) do
     local f_m3u = io.open(OUTPUT_M3U, "w")
     local f_m3u_hd = io.open(OUTPUT_M3U_HD, "w")
     local f_txt = io.open(OUTPUT_TXT, "w")
-    local bom = "\239\187\191"
-	
-    if f_m3u then
-    	if EPG_URL and EPG_URL ~= "" then
-        	f_m3u:write(string.format('#EXTM3U x-tvg-url="%s"\n', EPG_URL))
-    	else
-        	f_m3u:write('#EXTM3U\n')
-    	end
-	end
-	if f_m3u_hd then
-    	if EPG_URL and EPG_URL ~= "" then
-        	f_m3u_hd:write(string.format('#EXTM3U x-tvg-url="%s"\n', EPG_URL))
-    	else
-        	f_m3u_hd:write('#EXTM3U\n')
-    	end
-	end
+    -- local bom = "\239\187\191"
     
-	local base_path = LOGO_BASE or ""
+    -- if f_txt then
+    --     f_txt:write(bom)
+    -- end
+
+    if f_m3u then
+        if EPG_URL and EPG_URL ~= "" then
+            f_m3u:write(string.format('#EXTM3U x-tvg-url="%s"\n', EPG_URL))
+        else
+            f_m3u:write('#EXTM3U\n')
+        end
+    end
+
+    if f_m3u_hd then
+        if EPG_URL and EPG_URL ~= "" then
+            f_m3u_hd:write(string.format('#EXTM3U x-tvg-url="%s"\n', EPG_URL))
+        else
+            f_m3u_hd:write('#EXTM3U\n')
+        end
+    end
+    
+    local base_path = LOGO_BASE or ""
     if base_path ~= "" and base_path:sub(-1) ~= "/" then
         base_path = base_path .. "/"
     end
@@ -340,7 +343,7 @@ for _, task in ipairs(validated_tasks) do
 
         if f_m3u_hd and not item.cat_full:find("标清") then
             local clean_name = item.name
-            local p_list = { "[%[%‍%(（【《]?[Hh][Dd][%]%]%)）】》]?", "[%[%‍%(（【《]?高清[%]%]%)）】》]?",
+            local p_list = { "[%[%%(（【《]?[Hh][Dd][%]%)）】》]?", "[%[%%(（【《]?高清[%]%)）】》]?",
                              "[%-%s/—_]+[Hh][Dd]", "[%-%s/—_]+高清" }
             for _, p in ipairs(p_list) do clean_name = clean_name:gsub(p, "") end
             clean_name = clean_name:match("^[%s%p]*(.-)[%s%p]*$") or clean_name
@@ -359,7 +362,6 @@ for _, task in ipairs(validated_tasks) do
             f_txt:write(item.name .. "," .. item.url .. "\n")
         end
     end
-
 
     if f_m3u then f_m3u:close() end
     if f_m3u_hd then f_m3u_hd:close() end
