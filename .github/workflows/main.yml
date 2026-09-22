@@ -45,14 +45,25 @@ jobs:
             tar -xJf sdk.tar.xz -C sdk --strip-components=1
           fi
 
+      - name: Copy source into SDK package dir
+        run: |
+          mkdir -p sdk/package/luci-app-iptv-scan
+          cp -r ./Makefile ./root ./htdocs sdk/package/luci-app-iptv-scan/
+
+      - name: Update and install feeds
+        working-directory: sdk
+        run: |
+          ./scripts/feeds update -a
+          ./scripts/feeds install luci-base
+          ./scripts/feeds install rpcd-mod-ucode
+          ./scripts/feeds install ucode
+          ./scripts/feeds install luasocket
+
       - name: Build package
         working-directory: sdk
         run: |
-          echo "src-link iptvscan_ci $GITHUB_WORKSPACE" >> feeds.conf.default
-          ./scripts/feeds update -a
-          ./scripts/feeds install -a -p iptvscan_ci
           make defconfig
-          make package/iptvscan_ci/luci-app-iptv-scan/compile
+          make package/luci-app-iptv-scan/compile
 
       - name: Collect packages
         run: |
