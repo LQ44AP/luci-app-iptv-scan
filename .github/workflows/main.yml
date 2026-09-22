@@ -22,11 +22,18 @@ jobs:
           - version: '25.12.5'
             format: 'apk'
 
-    steps:
+        steps:
       - name: Checkout
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
+
+      # 新增步骤：显式更新和安装 feeds
+      - name: Setup Feeds
+        run: |
+          echo "src-link iptvscan_ci ${{ github.workspace }}" >> feeds.conf.default
+          ./scripts/feeds update -a
+          ./scripts/feeds install -a
 
       - name: Build with SDK
         uses: openwrt/gh-action-sdk@v9
