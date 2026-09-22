@@ -57,7 +57,7 @@ jobs:
           ./scripts/feeds install luci-base
           ./scripts/feeds install rpcd-mod-ucode
           ./scripts/feeds install ucode
-          ./scripts/feeds install luasocket
+          ./scripts/feeds install luasocket libuci-lua
 
       - name: Build package
         working-directory: sdk
