@@ -8,7 +8,7 @@ PKG_LICENSE:=GPL-3.0
 PKG_MAINTAINER:=Your Name <you@example.com>
 
 LUCI_TITLE:=LuCI app for IPTV multicast scanner
-LUCI_DEPENDS:=+luci-base +luci-lib-jsonc +rpcd +rpcd-mod-ucode +ucode
+LUCI_DEPENDS:=+luci-base +luci-lib-jsonc +rpcd +rpcd-mod-ucode +ucode +luasocket
 LUCI_PKGARCH:=all
 
 include $(TOPDIR)/feeds/luci/luci.mk
