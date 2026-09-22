@@ -33,7 +33,7 @@ jobs:
           fetch-depth: 0
 
       - name: Install zstd
-        run: sudo apt-get update && sudo apt-get install -y zstd build-essential gawk git gettext libncurses5-dev libssl-dev xsltproc wget unzip
+        run: sudo apt-get update && sudo apt-get install -y zstd
 
       - name: Download OpenWrt SDK
         run: |
@@ -48,7 +48,7 @@ jobs:
       - name: Copy source into SDK package dir
         run: |
           mkdir -p sdk/package/luci-app-iptv-scan
-          cp -r Makefile root htdocs sdk/package/luci-app-iptv-scan/
+          cp -r ./Makefile ./root ./htdocs sdk/package/luci-app-iptv-scan/
 
       - name: Update and install feeds
         working-directory: sdk
@@ -68,7 +68,10 @@ jobs:
       - name: Collect packages
         run: |
           mkdir -p dist
-          find sdk/bin/packages -type f \( -name '*.ipk' -o -name '*.apk' \) -exec cp {} dist/ \;
+          find sdk/bin/packages -type f \
+            \( -name 'luci-app-iptv-scan*.ipk' -o -name 'luci-app-iptv-scan*.apk' \) \
+            -exec cp {} dist/ \;
+          echo "=== collected ==="
           ls -la dist/
 
       - name: Upload artifacts
