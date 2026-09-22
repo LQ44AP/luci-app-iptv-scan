@@ -74,7 +74,7 @@ endef
 define Package/luci-app-iptv-scan/postinst
 #!/bin/sh
 [ -n "$${IPKG_INSTROOT}" ] || {
-	/etc/init.d/rpcd reload >/dev/null 2>&1
+	/etc/init.d/rpcd restart >/dev/null 2>&1
 	rm -f /tmp/luci-indexcache*
 	rm -rf /tmp/luci-modulecache*
 	exit 0
