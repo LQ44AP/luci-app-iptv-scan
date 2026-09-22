@@ -22,18 +22,21 @@ jobs:
           - version: '25.12.5'
             format: 'apk'
 
-        steps:
+    steps:
       - name: Checkout
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
-      # 新增步骤：显式更新和安装 feeds
-      - name: Setup Feeds
+      # 显式把当前仓库注册为自定义 feed。
+      # 如果你的包位于仓库根目录，SOURCE 就是 .
+      # 如果包位于 luci-app-iptv-scan/ 子目录，SOURCE 就是 ./luci-app-iptv-scan
+      - name: Setup custom feed
         run: |
-          echo "src-link iptvscan_ci ${{ github.workspace }}" >> feeds.conf.default
-          ./scripts/feeds update -a
-          ./scripts/feeds install -a
+          mkdir -p /tmp/feed-src
+          # 根据你的仓库结构调整：包在根目录用 `.`，在子目录用 `./luci-app-iptv-scan`
+          cp -r ./* /tmp/feed-src/ 2>/dev/null || true
+          ls -la /tmp/feed-src
 
       - name: Build with SDK
         uses: openwrt/gh-action-sdk@v9
@@ -41,16 +44,14 @@ jobs:
           ARCH: x86_64-${{ matrix.version }}
           FEEDNAME: iptvscan_ci
           PACKAGES: luci-app-iptv-scan
+          # 关键：告诉 action 我们已经在自定义 feed 里
+          NO_REFRESH_CHECK: 1
 
       - name: Collect packages
         run: |
           mkdir -p dist
-          if [ "${{ matrix.format }}" = "ipk" ]; then
-            find bin/packages -type f -name '*.ipk' -exec cp {} dist/ \;
-          else
-            find bin/packages -type f -name '*.apk' -exec cp {} dist/ \;
-          fi
-          ls -la dist
+          find bin/packages -type f \( -name '*.ipk' -o -name '*.apk' \) -exec cp {} dist/ \;
+          ls -la dist/
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
