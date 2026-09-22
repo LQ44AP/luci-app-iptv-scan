@@ -1,69 +1,84 @@
 include $(TOPDIR)/rules.mk
 
 PKG_NAME:=luci-app-iptv-scan
-PKG_VERSION:=1.0.2
+PKG_VERSION:=1.0.3
 PKG_RELEASE:=1
-PKG_LICENSE:=Apache-2.0
 
-include $(INCLUDE_DIR)/package.mk
+PKG_LICENSE:=GPL-3.0
+PKG_MAINTAINER:=Your Name <you@example.com>
 
-define Package/$(PKG_NAME)
-  SECTION:=luci
-  CATEGORY:=LuCI
-  SUBMENU:=3. Applications
-  TITLE:=LuCI support for IPTV Multicast Scan
-  DEPENDS:=+luasocket +luci-base +luci-compat +libuci-lua
-  PKGARCH:=all
-endef
+LUCI_TITLE:=LuCI app for IPTV multicast scanner
+LUCI_DEPENDS:=+luci-base +luci-lib-jsonc +rpcd +rpcd-mod-ucode +ucode
+LUCI_PKGARCH:=all
 
-# 下面三个定义留空即可
-define Build/Prepare
-endef
-
-define Build/Configure
-endef
+include $(TOPDIR)/feeds/luci/luci.mk
 
 define Build/Compile
 endef
 
-define Package/$(PKG_NAME)/install
-	# 1. 安装控制器 (Controller)
-	$(INSTALL_DIR) $(1)/usr/lib/lua/luci/controller
-	$(INSTALL_DATA) ./luasrc/controller/*.lua $(1)/usr/lib/lua/luci/controller/
+# ============ conffiles：升级时保留用户修改 ============
+define Package/luci-app-iptv-scan/conffiles
+/etc/config/iptv_scan
+/root/city_list.txt
+/root/iptv_dict.txt
+endef
 
-	# 2. 安装 CBI 模型 (Model)
-	$(INSTALL_DIR) $(1)/usr/lib/lua/luci/model/cbi
-	$(INSTALL_DATA) ./luasrc/model/cbi/*.lua $(1)/usr/lib/lua/luci/model/cbi/
+# ============ 安装规则：显式声明每个文件的落点 ============
+define Package/luci-app-iptv-scan/install
+	# ---------- LuCI 菜单 ----------
+	$(INSTALL_DIR) $(1)/usr/share/luci/menu.d
+	$(INSTALL_DATA) ./root/usr/share/luci/menu.d/luci-app-iptv-scan.json \
+		$(1)/usr/share/luci/menu.d/luci-app-iptv-scan.json
 
-	# 3. 安装 视图模板 (View)
-	$(INSTALL_DIR) $(1)/usr/lib/lua/luci/view/cbi
-	$(INSTALL_DATA) ./luasrc/view/cbi/*.htm $(1)/usr/lib/lua/luci/view/cbi/
-
-	# 4. 安装 配置文件
-	$(INSTALL_DIR) $(1)/etc/config
-	$(INSTALL_CONF) ./root/etc/config/iptv_scan $(1)/etc/config/
-
-	# 5. 安装 扫描引擎脚本
-	$(INSTALL_DIR) $(1)/usr/bin
-	$(INSTALL_BIN) ./root/usr/bin/iptv_scan.lua $(1)/usr/bin/
-
-	# 6. 安装 ACL 权限控制
+	# ---------- rpcd ACL ----------
 	$(INSTALL_DIR) $(1)/usr/share/rpcd/acl.d
-	$(INSTALL_DATA) ./root/usr/share/rpcd/acl.d/*.json $(1)/usr/share/rpcd/acl.d/
+	$(INSTALL_DATA) ./root/usr/share/rpcd/acl.d/luci-app-iptv-scan.json \
+		$(1)/usr/share/rpcd/acl.d/luci-app-iptv-scan.json
 
-	# 7. 安装 城市名列表
+	# ---------- rpcd ucode 后端 ----------
+	$(INSTALL_DIR) $(1)/usr/share/rpcd/ucode
+	$(INSTALL_BIN) ./root/usr/share/rpcd/ucode/luci.iptvscan \
+		$(1)/usr/share/rpcd/ucode/luci.iptvscan
+
+	# ---------- UCI 配置文件 ----------
+	$(INSTALL_DIR) $(1)/etc/config
+	$(INSTALL_CONF) ./root/etc/config/iptv_scan \
+		$(1)/etc/config/iptv_scan
+
+	# ---------- UCI 默认值 ----------
+	# $(INSTALL_DIR) $(1)/etc/uci-defaults
+	# $(INSTALL_BIN) ./root/etc/uci-defaults/85_iptv_scan \
+	# 	$(1)/etc/uci-defaults/85_iptv_scan
+
+	# ---------- 扫描主程序 ----------
+	$(INSTALL_DIR) $(1)/usr/bin
+	$(INSTALL_BIN) ./root/usr/bin/iptv_scan.lua \
+		$(1)/usr/bin/iptv_scan.lua
+
+	# ---------- 数据文件：city_list.txt / iptv_dict.txt ----------
 	$(INSTALL_DIR) $(1)/root
-	$(INSTALL_DATA) ./root/*.txt $(1)/root
+	$(INSTALL_CONF) ./root/root/city_list.txt \
+		$(1)/root/city_list.txt
+	# $(INSTALL_CONF) ./root/root/iptv_dict.txt \
+	# 	$(1)/root/iptv_dict.txt
+
+	# ---------- LuCI 前端视图 ----------
+	$(INSTALL_DIR) $(1)/www/luci-static/resources/view/iptv-scan
+	$(INSTALL_DATA) ./htdocs/luci-static/resources/view/iptv-scan/settings.js \
+		$(1)/www/luci-static/resources/view/iptv-scan/settings.js
+	$(INSTALL_DATA) ./htdocs/luci-static/resources/view/iptv-scan/status.js \
+		$(1)/www/luci-static/resources/view/iptv-scan/status.js
 endef
 
-define Package/$(PKG_NAME)/postinst
+# ============ 安装后置脚本：确保 rpcd 重载 ============
+define Package/luci-app-iptv-scan/postinst
 #!/bin/sh
-if [ -z "$${IPKG_INSTROOT}" ]; then
-	rm -rf /tmp/luci-indexcache.*
-	rm -rf /tmp/luci-modulecache/
-	killall -HUP rpcd 2>/dev/null
-fi
-exit 0
+[ -n "$${IPKG_INSTROOT}" ] || {
+	/etc/init.d/rpcd restart >/dev/null 2>&1
+	rm -f /tmp/luci-indexcache*
+	rm -rf /tmp/luci-modulecache*
+	exit 0
+}
 endef
 
-$(eval $(call BuildPackage,$(PKG_NAME)))
+$(eval $(call BuildPackage,luci-app-iptv-scan))
