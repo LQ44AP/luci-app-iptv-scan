@@ -1,0 +1,72 @@
+name: Build IPTV Scan Packages
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: Build (${{ matrix.version }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - version: '23.05.6'
+            format: 'ipk'
+          - version: '25.12.5'
+            format: 'apk'
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Build with SDK
+        uses: openwrt/gh-action-sdk@v9
+        env:
+          ARCH: x86_64-${{ matrix.version }}
+          FEEDNAME: iptvscan_ci
+          PACKAGES: luci-app-iptv-scan
+
+      - name: Collect packages
+        run: |
+          mkdir -p dist
+          if [ "${{ matrix.format }}" = "ipk" ]; then
+            find bin/packages -type f -name '*.ipk' -exec cp {} dist/ \;
+          else
+            find bin/packages -type f -name '*.apk' -exec cp {} dist/ \;
+          fi
+          ls -la dist
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: iptv-scan-${{ matrix.format }}
+          path: dist/*.*pk
+          retention-days: 30
+
+  release:
+    name: Publish Release
+    needs: build
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/v')
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+          merge-multiple: true
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: artifacts/**/*.*pk
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
