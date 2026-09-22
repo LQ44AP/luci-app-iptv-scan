@@ -19,8 +19,12 @@ jobs:
         include:
           - version: '23.05.6'
             format: 'ipk'
+            sdk_url: 'https://downloads.openwrt.org/releases/23.05.6/targets/x86/64/openwrt-sdk-23.05.6-x86-64_gcc-12.3.0_musl.Linux-x86_64.tar.xz'
+            sdk_ext: 'xz'
           - version: '25.12.5'
             format: 'apk'
+            sdk_url: 'https://downloads.openwrt.org/releases/25.12.5/targets/x86/64/openwrt-sdk-25.12.5-x86-64_gcc-14.3.0_musl.Linux-x86_64.tar.zst'
+            sdk_ext: 'zst'
 
     steps:
       - name: Checkout
@@ -28,29 +32,32 @@ jobs:
         with:
           fetch-depth: 0
 
-      # 显式把当前仓库注册为自定义 feed。
-      # 如果你的包位于仓库根目录，SOURCE 就是 .
-      # 如果包位于 luci-app-iptv-scan/ 子目录，SOURCE 就是 ./luci-app-iptv-scan
-      - name: Setup custom feed
-        run: |
-          mkdir -p /tmp/feed-src
-          # 根据你的仓库结构调整：包在根目录用 `.`，在子目录用 `./luci-app-iptv-scan`
-          cp -r ./* /tmp/feed-src/ 2>/dev/null || true
-          ls -la /tmp/feed-src
+      - name: Install zstd
+        run: sudo apt-get update && sudo apt-get install -y zstd
 
-      - name: Build with SDK
-        uses: openwrt/gh-action-sdk@v9
-        env:
-          ARCH: x86_64-${{ matrix.version }}
-          FEEDNAME: iptvscan_ci
-          PACKAGES: luci-app-iptv-scan
-          # 关键：告诉 action 我们已经在自定义 feed 里
-          NO_REFRESH_CHECK: 1
+      - name: Download OpenWrt SDK
+        run: |
+          wget -q -O sdk.tar.${{ matrix.sdk_ext }} "${{ matrix.sdk_url }}"
+          mkdir -p sdk
+          if [ "${{ matrix.sdk_ext }}" = "zst" ]; then
+            tar --zstd -xf sdk.tar.zst -C sdk --strip-components=1
+          else
+            tar -xJf sdk.tar.xz -C sdk --strip-components=1
+          fi
+
+      - name: Build package
+        working-directory: sdk
+        run: |
+          echo "src-link iptvscan_ci $GITHUB_WORKSPACE" >> feeds.conf.default
+          ./scripts/feeds update -a
+          ./scripts/feeds install -a -p iptvscan_ci
+          make defconfig
+          make package/iptvscan_ci/luci-app-iptv-scan/compile
 
       - name: Collect packages
         run: |
           mkdir -p dist
-          find bin/packages -type f \( -name '*.ipk' -o -name '*.apk' \) -exec cp {} dist/ \;
+          find sdk/bin/packages -type f \( -name '*.ipk' -o -name '*.apk' \) -exec cp {} dist/ \;
           ls -la dist/
 
       - name: Upload artifacts
