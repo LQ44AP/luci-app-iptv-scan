@@ -4,7 +4,7 @@ let fs = require('fs');
 
 let LOCK_FILE = '/tmp/iptv_scan.lock';
 let LOG_FILE  = '/tmp/iptv_scan.log';
-let SCAN_BIN  = '/usr/bin/iptv_scan';
+let SCAN_BIN  = '/usr/bin/iptv_scan.lua';
 
 // 判断扫描任务是否运行中
 function is_running() {
