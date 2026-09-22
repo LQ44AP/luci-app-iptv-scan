@@ -1,0 +1,28 @@
+{
+    "admin/services/iptv-scan": {
+        "title": "IPTV 扫描",
+        "order": 60,
+        "action": {
+            "type": "firstchild"
+        },
+        "depends": {
+            "acl": [ "luci-app-iptv-scan" ]
+        }
+    },
+    "admin/services/iptv-scan/settings": {
+        "title": "扫描设置",
+        "order": 1,
+        "action": {
+            "type": "view",
+            "path": "iptv-scan/settings"
+        }
+    },
+    "admin/services/iptv-scan/status": {
+        "title": "扫描状态",
+        "order": 2,
+        "action": {
+            "type": "view",
+            "path": "iptv-scan/status"
+        }
+    }
+}

@@ -1,0 +1,28 @@
+{
+    "luci-app-iptv-scan": {
+        "description": "Grant UCI and RPC access for IPTV scanner",
+        "read": {
+            "uci": [ "iptv_scan", "network" ],
+            "ubus": {
+		"network.device": [ "status" ],
+                "luci.iptvscan": [ "get_status", "get_log", "list_interfaces" ]
+            },
+            "file": {
+                "/www/iptv.m3u": [ "read" ],
+                "/www/iptv_hd.m3u": [ "read" ],
+                "/www/iptv.txt": [ "read" ]
+            }
+        },
+        "write": {
+            "uci": [ "iptv_scan" ],
+            "ubus": {
+                "luci.iptvscan": [ "start_scan" ]
+            },
+            "file": {
+                "/www/iptv.m3u": [ "write" ],
+                "/www/iptv_hd.m3u": [ "write" ],
+                "/www/iptv.txt": [ "write" ]
+            }
+        }
+    }
+}

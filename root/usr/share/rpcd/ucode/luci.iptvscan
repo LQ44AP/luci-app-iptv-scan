@@ -1,0 +1,81 @@
+#!/usr/bin/ucode
+
+'use strict';
+
+let fs = require('fs');
+
+let LOCK_FILE = '/tmp/iptv_scan.lock';
+let LOG_FILE  = '/tmp/iptv_scan.log';
+let SCAN_BIN  = '/usr/bin/iptv_scan.lua';
+let LUA_BIN   = '/usr/bin/lua';
+
+function is_running() {
+    let f = fs.open(LOCK_FILE, 'r');
+    if (!f) return false;
+    let pid = f.read('all');
+    f.close();
+    if (!pid) return false;
+    pid = replace(pid, /[^0-9]/g, '');
+    if (!length(pid)) return false;
+    let p = fs.open(`/proc/${pid}/stat`, 'r');
+    if (p) { p.close(); return true; }
+    return false;
+}
+
+function tail_log(max_bytes) {
+    let f = fs.open(LOG_FILE, 'r');
+    if (!f) return '';
+    let content = f.read('all');
+    f.close();
+    if (!content) return '';
+    if (length(content) > max_bytes)
+        content = substr(content, length(content) - max_bytes);
+    return content;
+}
+
+return {
+    'luci.iptvscan': {
+        get_status: {
+            call: function() {
+                return {
+                    running: is_running(),
+                    log: tail_log(65536)
+                };
+            }
+        },
+
+        start_scan: {
+            call: function() {
+                if (is_running())
+                    return { error: '扫描任务已在运行中' };
+
+                // 清空旧日志
+                let lf = fs.open(LOG_FILE, 'w');
+                if (lf) { lf.write(''); lf.close(); }
+
+                // OpenWrt 无 setsid，用 nohup 脱离控制终端
+                // 显式指定 lua 解释器，避免 CRLF shebang / 权限问题
+                system(`${LUA_BIN} ${SCAN_BIN} > ${LOG_FILE} 2>&1 < /dev/null &`);
+
+                return { success: true };
+            }
+        },
+
+        list_interfaces: {
+            call: function() {
+                let interfaces = [];
+                let p = popen('ubus list "network.interface.*" 2>/dev/null');
+                if (p) {
+                    let line;
+                    while ((line = p.read('line')) !== null) {
+                        let m = match(line, /^network\.interface\.(.+)$/);
+                        if (m && length(m) > 1)
+                            push(interfaces, { name: m[1] });
+                    }
+                    p.close();
+                }
+                return { interfaces: interfaces };
+            }
+        }
+    }
+};
