@@ -48,16 +48,13 @@ jobs:
       - name: Copy source into SDK package dir
         run: |
           mkdir -p sdk/package/luci-app-iptv-scan
-          cp -r ./Makefile ./root ./htdocs sdk/package/luci-app-iptv-scan/
+          cp -r ../root sdk/package/luci-app-iptv-scan/
 
       - name: Update and install feeds
         working-directory: sdk
         run: |
           ./scripts/feeds update -a
-          ./scripts/feeds install luci-base
-          ./scripts/feeds install rpcd-mod-ucode
-          ./scripts/feeds install ucode
-          ./scripts/feeds install luasocket libuci-lua
+          ./scripts/feeds install -a
 
       - name: Build package
         working-directory: sdk
