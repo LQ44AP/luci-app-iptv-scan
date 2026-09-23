@@ -60,6 +60,7 @@ jobs:
       - name: Build package
         working-directory: sdk
         run: |
+          echo "CONFIG_PACKAGE_luci-app-iptv-scan=y" >> .config
           make defconfig
           make package/luci-app-iptv-scan/compile
 
