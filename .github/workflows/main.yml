@@ -54,13 +54,16 @@ jobs:
         working-directory: sdk
         run: |
           ./scripts/feeds update -a
-          ./scripts/feeds install -a
+          ./scripts/feeds install luci-base
+          ./scripts/feeds install rpcd-mod-ucode
+          ./scripts/feeds install ucode
+          ./scripts/feeds install luasocket libuci-lua
 
       - name: Build package
         working-directory: sdk
         run: |
           make defconfig
-          make package/luci-app-iptv-scan/compile V=s
+          make package/luci-app-iptv-scan/compile
 
       - name: Collect packages
         run: |
@@ -96,4 +99,3 @@ jobs:
           files: artifacts/**/*.*pk
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
