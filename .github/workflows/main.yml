@@ -33,7 +33,7 @@ jobs:
           fetch-depth: 0
 
       - name: Install zstd
-        run: sudo apt-get update && sudo apt-get install -y build-essential libncurses5-dev gawk git gettext libssl-dev xsltproc wget unzip qemu-utils python3 file zstd tar
+        run: sudo apt-get update && sudo apt-get install -y zstd
 
       - name: Download OpenWrt SDK
         run: |
@@ -47,22 +47,23 @@ jobs:
 
       - name: Copy source into SDK package dir
         run: |
-          cd sdk
           mkdir -p sdk/package/luci-app-iptv-scan
-          cp -r ../root sdk/package/luci-app-iptv-scan/
-          echo "CONFIG_PACKAGE_luci-app-iptv-scan=y" >> .config
+          cp -r ./Makefile ./root ./htdocs sdk/package/luci-app-iptv-scan/
 
       - name: Update and install feeds
         working-directory: sdk
         run: |
           ./scripts/feeds update -a
-          ./scripts/feeds install -a
+          ./scripts/feeds install luci-base
+          ./scripts/feeds install rpcd-mod-ucode
+          ./scripts/feeds install ucode
+          ./scripts/feeds install luasocket libuci-lua
 
       - name: Build package
         working-directory: sdk
         run: |
           make defconfig
-          make package/luci-app-iptv-scan/compile V=s
+          make package/luci-app-iptv-scan/compile
 
       - name: Collect packages
         run: |
@@ -98,3 +99,4 @@ jobs:
           files: artifacts/**/*.*pk
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
