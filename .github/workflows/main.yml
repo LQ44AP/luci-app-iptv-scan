@@ -50,6 +50,7 @@ jobs:
           cd sdk
           mkdir -p sdk/package/luci-app-iptv-scan
           cp -r ../root sdk/package/luci-app-iptv-scan/
+          echo "CONFIG_PACKAGE_luci-app-iptv-scan=y" >> .config
 
       - name: Update and install feeds
         working-directory: sdk
@@ -60,9 +61,8 @@ jobs:
       - name: Build package
         working-directory: sdk
         run: |
-          echo "CONFIG_PACKAGE_luci-app-iptv-scan=y" >> .config
           make defconfig
-          make package/luci-app-iptv-scan/compile
+          make package/luci-app-iptv-scan/compile V=s
 
       - name: Collect packages
         run: |
