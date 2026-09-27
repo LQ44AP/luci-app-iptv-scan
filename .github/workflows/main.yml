@@ -5,11 +5,6 @@ on:
     tags:
       - 'v*'
   workflow_dispatch:
-    inputs:
-      reason:
-        description: '可选，记录触发原因'
-        required: false
-        default: ''
 
 env:
   PKG_NAME: luci-app-iptv-scan
@@ -29,6 +24,15 @@ jobs:
           # - { name: aarch64_generic, target: rockchip, subtarget: armv8 }
 
     steps:
+      - name: Trigger info
+        run: |
+          echo "事件类型: ${{ github.event_name }}"
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "触发原因: ${{ github.event.inputs.reason }}"
+          else
+            echo "触发 tag : ${{ github.ref_name }}"
+          fi
+
       - name: Checkout Code
         uses: actions/checkout@v4
         with:
@@ -101,7 +105,6 @@ jobs:
             --exclude='build-*.log' \
             ${{ github.workspace }}/package-src/ package/$PKG_NAME/
 
-          # 确保可执行权限（Windows checkout 可能丢失）
           chmod 0755 package/$PKG_NAME/root/usr/bin/iptv_scan.lua 2>/dev/null || true
           chmod 0755 package/$PKG_NAME/root/usr/share/rpcd/ucode/luci.iptvscan 2>/dev/null || true
 
@@ -122,8 +125,7 @@ jobs:
       - name: Build package
         run: |
           cd openwrt-sdk
-          make package/$PKG_NAME/compile V=s -j$(nproc) 2>&1 | \
-            tee ${{ github.workspace }}/build-${{ matrix.version }}-${{ matrix.arch.name }}.log
+          make package/$PKG_NAME/compile V=s -j$(nproc)
 
       - name: Collect artifacts
         run: |
@@ -140,11 +142,3 @@ jobs:
           name: ${{ env.PKG_NAME }}-${{ matrix.version }}-${{ matrix.arch.name }}-${{ steps.vars.outputs.suffix }}
           path: ${{ github.workspace }}/output/*
           if-no-files-found: error
-
-      - name: Upload build log
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: build-log-${{ matrix.version }}-${{ matrix.arch.name }}
-          path: ${{ github.workspace }}/build-${{ matrix.version }}-${{ matrix.arch.name }}.log
-          if-no-files-found: ignore
