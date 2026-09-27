@@ -5,6 +5,11 @@ on:
     tags:
       - 'v*'
   workflow_dispatch:
+    inputs:
+      reason:
+        description: '手动触发原因'
+        required: false
+        default: 'Manual trigger'
 
 env:
   PKG_NAME: luci-app-iptv-scan
@@ -105,8 +110,8 @@ jobs:
             --exclude='build-*.log' \
             ${{ github.workspace }}/package-src/ package/$PKG_NAME/
 
-          chmod 0755 package/$PKG_NAME/root/usr/bin/iptv_scan.lua 2>/dev/null || true
-          chmod 0755 package/$PKG_NAME/root/usr/share/rpcd/ucode/luci.iptvscan 2>/dev/null || true
+          chmod 0755 package/$PKG_NAME/root/usr/bin/iptv_scan.lua 2>/devnull || true
+          chmod 0755 package/$PKG_NAME/root/usr/share/rpcd/ucode/luci.iptvscan 2>/devnull || true
 
           echo "包内文件:"
           find package/$PKG_NAME -type f
@@ -117,6 +122,8 @@ jobs:
       - name: Configure build
         run: |
           cd openwrt-sdk
+          ./scripts/feeds update -i
+          ./scripts/feeds install -a
           echo "CONFIG_PACKAGE_${PKG_NAME}=m" >> .config
           echo "CONFIG_PACKAGE_libuci-lua=m"    >> .config
           echo "CONFIG_PACKAGE_luasocket=m"    >> .config
@@ -125,14 +132,17 @@ jobs:
       - name: Build package
         run: |
           cd openwrt-sdk
-          make package/$PKG_NAME/compile V=s -j$(nproc)
+          make package/$PKG_NAME/compile V=s -j1
 
       - name: Collect artifacts
         run: |
           cd openwrt-sdk
           mkdir -p ${{ github.workspace }}/output
-          find bin -name "${PKG_NAME}*.${{ steps.vars.outputs.suffix }}" \
-            -exec cp {} ${{ github.workspace }}/output/ \;
+          find bin/packages/ -type f -name "${PKG_NAME}*.${{ steps.vars.outputs.suffix }}" \
+            -exec cp {} ${{ github.workspace }}/output/ \; 2>/devnull || \
+          find bin/targets/ -type f -name "${PKG_NAME}*.${{ steps.vars.outputs.suffix }}" \
+            -exec cp {} ${{ github.workspace }}/output/ \; 2>/devnull || true
+
           echo "=== 产物列表 ==="
           ls -la ${{ github.workspace }}/output/
 
