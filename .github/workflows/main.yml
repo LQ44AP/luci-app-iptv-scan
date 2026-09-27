@@ -140,28 +140,17 @@ jobs:
           cd openwrt-sdk
 
           SUFFIX="${{ steps.vars.outputs.suffix }}"
-          echo "正在查找所有的 .${SUFFIX} 文件..."
+          echo "正在搜集 ${PKG_NAME} 编译产物 (.${SUFFIX})..."
 
-          # 1. 打印 bin 目录结构以便在日志中排查位置
-          echo "=== SDK bin 目录内容结构 ==="
-          find bin -type f -name "*.${SUFFIX}" || true
-
-          # 2. 精确/通配收集包含包名的安装包
-          find bin/ -type f \( -name "${PKG_NAME}*.${SUFFIX}" -o -name "*iptv*.${SUFFIX}" \) \
-            -exec cp -v {} ${{ github.workspace }}/output/ \;
-
-          # 3. 如果仍未找到任何包，作为兜底：将 bin 目录下所有生成的 .ipk / .apk 全部收集
-          if [ -z "$(ls -A ${{ github.workspace }}/output 2>/devnull)" ]; then
-            echo "::warning::未按包名找到匹配文件，尝试搜集 bin 目录下所有 .${SUFFIX} 文件..."
-            find bin/ -type f -name "*.${SUFFIX}" -exec cp -v {} ${{ github.workspace }}/output/ \;
-          fi
+          # 查找属于该包的安装包文件
+          find bin/ -type f -name "${PKG_NAME}*.${SUFFIX}" -exec cp -v {} ${{ github.workspace }}/output/ \;
 
           echo "=== 最终收集到的产物列表 ==="
           ls -la ${{ github.workspace }}/output/
 
-          # 4. 如果 output 目录依然为空，主动断言报错，输出明确日志
-          if [ -z "$(ls -A ${{ github.workspace }}/output 2>/devnull)" ]; then
-            echo "::error::编译失败，bin 目录下未生成任何 .${SUFFIX} 文件！请检查上一步 Build package 的日志。"
+          # 检查 output 目录是否为空
+          if [ -z "$(ls -A ${{ github.workspace }}/output 2>/dev/null)" ]; then
+            echo "::error::未找到 ${PKG_NAME} 的 .${SUFFIX} 文件！请检查上一步编译日志。"
             exit 1
           fi
 
