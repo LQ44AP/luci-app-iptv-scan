@@ -33,7 +33,8 @@ jobs:
           fetch-depth: 0
 
       - name: Install zstd
-        run: sudo apt-get update && sudo apt-get install -y zstd
+        run: sudo apt-get update && sudo apt-get install -y build-essential libncurses5-dev gawk git gettext \
+         libssl-dev xsltproc wget unzip qemu-utils python3 file zstd tar rsync
 
       - name: Download OpenWrt SDK
         run: |
@@ -54,11 +55,14 @@ jobs:
         working-directory: sdk
         run: |
           ./scripts/feeds update -a
-          ./scripts/feeds install luasocket libuci-lua
+          ./scripts/feeds install -a          
 
       - name: Build package
         working-directory: sdk
         run: |
+          echo "CONFIG_PACKAGE_luci-app-iptv-scan=m" >> .config
+          echo "CONFIG_PACKAGE_libuci-lua=m"    >> .config
+          echo "CONFIG_PACKAGE_luasocket=m"    >> .config
           make defconfig
           make package/luci-app-iptv-scan/compile
 
