@@ -13,9 +13,6 @@ LUCI_PKGARCH:=all
 
 include $(TOPDIR)/feeds/luci/luci.mk
 
-define Build/Compile
-endef
-
 # ============ conffiles：升级时保留用户修改 ============
 define Package/luci-app-iptv-scan/conffiles
 /etc/config/iptv_scan
