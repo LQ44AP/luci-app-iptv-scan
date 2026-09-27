@@ -1,101 +1,150 @@
-name: Build IPTV Scan Packages
+name: Build OpenWrt luci-app-iptv-scan
 
 on:
-  workflow_dispatch:
   push:
     tags:
       - 'v*'
+  workflow_dispatch:
+    inputs:
+      reason:
+        description: '可选，记录触发原因'
+        required: false
+        default: ''
 
-permissions:
-  contents: write
+env:
+  PKG_NAME: luci-app-iptv-scan
 
 jobs:
   build:
-    name: Build (${{ matrix.version }})
+    name: Build ${{ matrix.version }} / ${{ matrix.arch.name }}
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
-        include:
-          - version: '23.05.6'
-            format: 'ipk'
-            sdk_url: 'https://downloads.openwrt.org/releases/23.05.6/targets/x86/64/openwrt-sdk-23.05.6-x86-64_gcc-12.3.0_musl.Linux-x86_64.tar.xz'
-            sdk_ext: 'xz'
-          - version: '25.12.5'
-            format: 'apk'
-            sdk_url: 'https://downloads.openwrt.org/releases/25.12.5/targets/x86/64/openwrt-sdk-25.12.5-x86-64_gcc-14.3.0_musl.Linux-x86_64.tar.zst'
-            sdk_ext: 'zst'
+        version: [23.05.6, 25.12.5]
+        arch:
+          # - { name: mipsel_24kc, target: ramips, subtarget: mt7621 }
+          # - { name: mips_24kc, target: ath79, subtarget: generic }
+          - { name: x86_64, target: x86, subtarget: 64 }
+          # - { name: aarch64_generic, target: rockchip, subtarget: armv8 }
 
     steps:
-      - name: Checkout
+      - name: Checkout Code
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0
+          path: package-src
 
-      - name: Install zstd
-        run: sudo apt-get update && sudo apt-get install -y build-essential libncurses5-dev gawk git gettext libssl-dev xsltproc wget unzip qemu-utils python3 file zstd tar rsync
-
-      - name: Download OpenWrt SDK
+      - name: Install Dependencies
         run: |
-          wget -q -O sdk.tar.${{ matrix.sdk_ext }} "${{ matrix.sdk_url }}"
-          mkdir -p sdk
-          if [ "${{ matrix.sdk_ext }}" = "zst" ]; then
-            tar --zstd -xf sdk.tar.zst -C sdk --strip-components=1
+          sudo apt-get update
+          sudo apt-get install -y build-essential libncurses5-dev gawk git gettext \
+            libssl-dev xsltproc wget unzip qemu-utils python3 file zstd tar rsync
+
+      - name: Set version-specific variables
+        id: vars
+        run: |
+          VERSION="${{ matrix.version }}"
+          if [[ "$VERSION" =~ ^25\. ]] || [[ "$VERSION" =~ ^main ]]; then
+            echo "suffix=apk" >> $GITHUB_OUTPUT
+            echo "ext=zst" >> $GITHUB_OUTPUT
+            echo "sdk_pattern=openwrt-sdk-*.tar.zst" >> $GITHUB_OUTPUT
           else
-            tar -xJf sdk.tar.xz -C sdk --strip-components=1
+            echo "suffix=ipk" >> $GITHUB_OUTPUT
+            echo "ext=xz" >> $GITHUB_OUTPUT
+            echo "sdk_pattern=openwrt-sdk-*.tar.xz" >> $GITHUB_OUTPUT
           fi
 
-      - name: Copy source into SDK package dir
+      - name: Download and Setup SDK
         run: |
-          mkdir -p sdk/package/luci-app-iptv-scan
-          cp -r ./Makefile ./root sdk/package/luci-app-iptv-scan/
+          VERSION="${{ matrix.version }}"
+          TARGET="${{ matrix.arch.target }}"
+          SUBTARGET="${{ matrix.arch.subtarget }}"
+          SDK_BASE="https://downloads.openwrt.org/releases/${VERSION}/targets/${TARGET}/${SUBTARGET}/"
+          PATTERN="${{ steps.vars.outputs.sdk_pattern }}"
 
-      - name: Update and install feeds
-        working-directory: sdk
+          wget -nv -r -l1 -nd -A "$PATTERN" -e robots=off "$SDK_BASE" || true
+          SDK_FILE=$(ls $PATTERN 2>/dev/null | head -n 1)
+
+          if [ -z "$SDK_FILE" ]; then
+            echo "::error::No SDK file found at $SDK_BASE"
+            exit 1
+          fi
+          echo "找到 SDK: $SDK_FILE"
+
+          EXT="${{ steps.vars.outputs.ext }}"
+          if [ "$EXT" = "xz" ]; then
+            tar -xJf "$SDK_FILE"
+          elif [ "$EXT" = "zst" ]; then
+            tar --zstd -xf "$SDK_FILE"
+          fi
+
+          SDK_DIR=$(find . -maxdepth 1 -type d -name "openwrt-sdk-*" | head -n 1)
+          if [ -z "$SDK_DIR" ]; then
+            echo "::error::Failed to extract SDK"
+            exit 1
+          fi
+          mv "$SDK_DIR" openwrt-sdk
+          echo "SDK 已就绪: $(pwd)/openwrt-sdk"
+
+      - name: Update feeds
         run: |
+          cd openwrt-sdk
           ./scripts/feeds update -a
-          ./scripts/feeds install -a          
+          ./scripts/feeds install -a
 
-      - name: Build package
-        working-directory: sdk
+      - name: Copy package source into SDK
         run: |
-          echo "CONFIG_PACKAGE_luci-app-iptv-scan=m" >> .config
+          cd openwrt-sdk
+          mkdir -p package/$PKG_NAME
+          rsync -a --exclude='.git' --exclude='.github' \
+            --exclude='*.ipk' --exclude='*.apk' \
+            --exclude='build-*.log' \
+            ${{ github.workspace }}/package-src/ package/$PKG_NAME/
+
+          # 确保可执行权限（Windows checkout 可能丢失）
+          chmod 0755 package/$PKG_NAME/root/usr/bin/iptv_scan.lua 2>/dev/null || true
+          chmod 0755 package/$PKG_NAME/root/usr/usr/share/rpcd/ucode/luci.iptvscan 2>/dev/null || true
+
+          echo "包内文件:"
+          find package/$PKG_NAME -type f
+          echo ""
+          echo "可执行文件:"
+          find package/$PKG_NAME -type f -perm -u+x
+
+      - name: Configure build
+        run: |
+          cd openwrt-sdk
+          echo "CONFIG_PACKAGE_${PKG_NAME}=m" >> .config
           echo "CONFIG_PACKAGE_libuci-lua=m"    >> .config
           echo "CONFIG_PACKAGE_luasocket=m"    >> .config
           make defconfig
-          make package/luci-app-iptv-scan/compile
 
-      - name: Collect packages
+      - name: Build package
         run: |
-          mkdir -p dist
-          find sdk/bin/packages -type f \
-            \( -name 'luci-app-iptv-scan*.ipk' -o -name 'luci-app-iptv-scan*.apk' \) \
-            -exec cp {} dist/ \;
-          echo "=== collected ==="
-          ls -la dist/
+          cd openwrt-sdk
+          make package/$PKG_NAME/compile V=s -j$(nproc) 2>&1 | \
+            tee ${{ github.workspace }}/build-${{ matrix.version }}-${{ matrix.arch.name }}.log
+
+      - name: Collect artifacts
+        run: |
+          cd openwrt-sdk
+          mkdir -p ${{ github.workspace }}/output
+          find bin -name "${PKG_NAME}*.${{ steps.vars.outputs.suffix }}" \
+            -exec cp {} ${{ github.workspace }}/output/ \;
+          echo "=== 产物列表 ==="
+          ls -la ${{ github.workspace }}/output/
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: iptv-scan-${{ matrix.format }}
-          path: dist/*.*pk
-          retention-days: 30
+          name: ${{ env.PKG_NAME }}-${{ matrix.version }}-${{ matrix.arch.name }}-${{ steps.vars.outputs.suffix }}
+          path: ${{ github.workspace }}/output/*
+          if-no-files-found: error
 
-  release:
-    name: Publish Release
-    needs: build
-    runs-on: ubuntu-latest
-    if: startsWith(github.ref, 'refs/tags/v')
-    steps:
-      - name: Download all artifacts
-        uses: actions/download-artifact@v4
+      - name: Upload build log
+        if: always()
+        uses: actions/upload-artifact@v4
         with:
-          path: artifacts
-          merge-multiple: true
-
-      - name: Create Release
-        uses: softprops/action-gh-release@v2
-        with:
-          files: artifacts/**/*.*pk
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          name: build-log-${{ matrix.version }}-${{ matrix.arch.name }}
+          path: ${{ github.workspace }}/build-${{ matrix.version }}-${{ matrix.arch.name }}.log
+          if-no-files-found: ignore
