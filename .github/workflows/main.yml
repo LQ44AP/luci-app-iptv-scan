@@ -103,7 +103,7 @@ jobs:
 
           # 确保可执行权限（Windows checkout 可能丢失）
           chmod 0755 package/$PKG_NAME/root/usr/bin/iptv_scan.lua 2>/dev/null || true
-          chmod 0755 package/$PKG_NAME/root/usr/usr/share/rpcd/ucode/luci.iptvscan 2>/dev/null || true
+          chmod 0755 package/$PKG_NAME/root/usr/share/rpcd/ucode/luci.iptvscan 2>/dev/null || true
 
           echo "包内文件:"
           find package/$PKG_NAME -type f
