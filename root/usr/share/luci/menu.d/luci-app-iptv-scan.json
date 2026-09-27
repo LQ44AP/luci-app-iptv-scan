@@ -1,7 +1,6 @@
 {
     "admin/services/iptv-scan": {
         "title": "IPTV 扫描",
-        "order": 60,
         "action": {
             "type": "firstchild"
         },
