@@ -110,8 +110,8 @@ jobs:
             --exclude='build-*.log' \
             ${{ github.workspace }}/package-src/ package/$PKG_NAME/
 
-          chmod 0755 package/$PKG_NAME/root/usr/bin/iptv_scan.lua 2>/devnull || true
-          chmod 0755 package/$PKG_NAME/root/usr/share/rpcd/ucode/luci.iptvscan 2>/devnull || true
+          chmod 0755 package/$PKG_NAME/root/usr/bin/iptv_scan.lua 2>/dev/null || true
+          chmod 0755 package/$PKG_NAME/root/usr/share/rpcd/ucode/luci.iptvscan 2>/dev/null || true
 
           echo "包内文件:"
           find package/$PKG_NAME -type f
