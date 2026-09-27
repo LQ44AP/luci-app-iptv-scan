@@ -136,15 +136,34 @@ jobs:
 
       - name: Collect artifacts
         run: |
-          cd openwrt-sdk
           mkdir -p ${{ github.workspace }}/output
-          find bin/packages/ -type f -name "${PKG_NAME}*.${{ steps.vars.outputs.suffix }}" \
-            -exec cp {} ${{ github.workspace }}/output/ \; 2>/devnull || \
-          find bin/targets/ -type f -name "${PKG_NAME}*.${{ steps.vars.outputs.suffix }}" \
-            -exec cp {} ${{ github.workspace }}/output/ \; 2>/devnull || true
+          cd openwrt-sdk
 
-          echo "=== 产物列表 ==="
+          SUFFIX="${{ steps.vars.outputs.suffix }}"
+          echo "正在查找所有的 .${SUFFIX} 文件..."
+
+          # 1. 打印 bin 目录结构以便在日志中排查位置
+          echo "=== SDK bin 目录内容结构 ==="
+          find bin -type f -name "*.${SUFFIX}" || true
+
+          # 2. 精确/通配收集包含包名的安装包
+          find bin/ -type f \( -name "${PKG_NAME}*.${SUFFIX}" -o -name "*iptv*.${SUFFIX}" \) \
+            -exec cp -v {} ${{ github.workspace }}/output/ \;
+
+          # 3. 如果仍未找到任何包，作为兜底：将 bin 目录下所有生成的 .ipk / .apk 全部收集
+          if [ -z "$(ls -A ${{ github.workspace }}/output 2>/devnull)" ]; then
+            echo "::warning::未按包名找到匹配文件，尝试搜集 bin 目录下所有 .${SUFFIX} 文件..."
+            find bin/ -type f -name "*.${SUFFIX}" -exec cp -v {} ${{ github.workspace }}/output/ \;
+          fi
+
+          echo "=== 最终收集到的产物列表 ==="
           ls -la ${{ github.workspace }}/output/
+
+          # 4. 如果 output 目录依然为空，主动断言报错，输出明确日志
+          if [ -z "$(ls -A ${{ github.workspace }}/output 2>/devnull)" ]; then
+            echo "::error::编译失败，bin 目录下未生成任何 .${SUFFIX} 文件！请检查上一步 Build package 的日志。"
+            exit 1
+          fi
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
