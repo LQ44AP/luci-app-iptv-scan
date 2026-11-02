@@ -71,12 +71,12 @@ return view.extend({
         o = s.option(form.Value, 'epg_url',
             _('EPG 地址'),
             _('EPG 节目单地址。可从下拉建议中选择，或直接输入自定义 URL；留空则不写入 EPG 信息。'));
-        o.value('https://gitee.com/taksssss/tv/raw/main/epg/51zmt.xml.gz',
+        o.value('https://gitee.com/taksssss/tv/raw/main/epg/51zmt1.xml.gz',
                 _('51zmt（Gitee）'));
-        o.value('https://gcore.jsdelivr.net/gh/taksssss/tv/epg/51zmt.xml.gz',
+        o.value('https://gcore.jsdelivr.net/gh/taksssss/tv/epg/51zmt1.xml.gz',
                 _('51zmt（jsDelivr）'));
         o.value('', _('不使用 EPG'));
-        o.default = 'https://gitee.com/taksssss/tv/raw/main/epg/51zmt.xml.gz';
+        o.default = 'https://gitee.com/taksssss/tv/raw/main/epg/51zmt1.xml.gz';
         o.rmempty = true;
 
         // ===== 台标基础路径 =====
