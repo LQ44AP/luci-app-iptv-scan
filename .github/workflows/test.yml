@@ -1,4 +1,4 @@
-name: Build OpenWrt luci-app-iptv-scan
+name: Build luci-app-iptv-scan
 
 on:
   push:
