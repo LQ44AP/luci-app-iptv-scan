@@ -47,7 +47,7 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y build-essential libncurses5-dev libncurses-dev gawk git gettext \
-            libssl-dev xsltproc wget unzip qemu-utils python3 file zstd tar rsync
+            libssl-dev xsltproc wget unzip qemu-utils python3 file zstd tar rsync coreutils
 
       - name: Set version-specific variables
         id: vars
