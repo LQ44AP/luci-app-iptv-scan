@@ -97,6 +97,7 @@ jobs:
 
       - name: Update feeds
         run: |
+          export FORCE_UNSAFE_CONFIGURE=1
           cd openwrt-sdk
           ./scripts/feeds update -a
           ./scripts/feeds install -a
