@@ -46,7 +46,7 @@ jobs:
       - name: Install Dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y build-essential libncurses5-dev gawk git gettext \
+          sudo apt-get install -y build-essential libncurses5-dev libncurses-dev gawk git gettext \
             libssl-dev xsltproc wget unzip qemu-utils python3 file zstd tar rsync
 
       - name: Set version-specific variables
