@@ -9,6 +9,6 @@ config settings
 	list ranges '239.81.0.:4056'
 	list ranges '239.81.1.:4056'
 	option interface 'wan'
-	option epg_url 'https://gitee.com/taksssss/tv/raw/main/epg/51zmt1.xml.gz'
+	option epg_url 'https://gitee.com/taksssss/tv/raw/main/epg/51zmte1.xml.gz'
 	option logo_base 'https://gcore.jsdelivr.net/gh/taksssss/tv/icon'
 
