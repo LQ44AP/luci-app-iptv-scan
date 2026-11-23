@@ -2,11 +2,6 @@ name: Build luci-app-iptv-scan
 
 on:
   workflow_dispatch:
-    inputs:
-      reason:
-        description: '手动触发原因'
-        required: false
-        default: 'Manual trigger'
 
 env:
   PKG_NAME: luci-app-iptv-scan
