@@ -1,9 +1,6 @@
 name: Build luci-app-iptv-scan
 
 on:
-  push:
-    tags:
-      - 'v*'
   workflow_dispatch:
     inputs:
       reason:
