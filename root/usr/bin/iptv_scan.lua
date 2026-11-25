@@ -16,8 +16,17 @@ EPG_URL = (EPG_URL and EPG_URL ~= "") and EPG_URL or ""
 local LOGO_BASE = uci:get("iptv_scan", section, "logo_base")
 LOGO_BASE = (LOGO_BASE and LOGO_BASE ~= "") and LOGO_BASE or ""
 
-local OUTPUT_M3U_HD   = OUTPUT_M3U:gsub("%.m3u$", "_hd.m3u")
+-- 修复：若 m3u_file 未以 .m3u 结尾，原 gsub 不替换会导致 HD 与全量写同一路径
+local OUTPUT_M3U_HD
+if OUTPUT_M3U:match("%.m3u$") then
+    OUTPUT_M3U_HD = OUTPUT_M3U:gsub("%.m3u$", "_hd.m3u")
+else
+    OUTPUT_M3U_HD = OUTPUT_M3U .. "_hd.m3u"
+end
 local LOCK_FILE = "/tmp/iptv_scan.lock"
+
+-- 记录本进程实际持有的锁（降级无锁时为 nil，用于 release 判断）
+local held_lock_pid = nil
 
 local function log(msg)
     print(msg)
@@ -28,7 +37,6 @@ end
 -- 获取当前 Lua 进程的真实 PID
 -- 说明：io.open 在 Lua 自身进程内执行 open(2)，不会 fork 子进程，
 --       所以 /proc/self/stat 中的 self 就是当前的 Lua 进程。
---       这与 io.popen("sh -c 'echo $$'") 完全不同，后者拿到的是 sh 子进程 PID。
 local function get_own_pid()
     local f = io.open("/proc/self/stat", "r")
     if not f then return nil end
@@ -38,16 +46,21 @@ local function get_own_pid()
     return tonumber(line:match("^(%d+)"))
 end
 
--- 通过 /proc/<pid>/stat 是否存在来判断进程是否存活
+-- 通过 /proc/<pid>/stat 判断进程是否存活；
+-- 同时排除僵尸进程（状态 Z），避免把已退出但未回收的 PID 当成活进程。
 -- 相比 os.execute("kill -0 ...") 的优点是：不依赖 shell，也不受
--- Lua 5.1(返回 0/1) 与 5.2+(返回 true/nil,code) 差异影响
+-- Lua 5.1(返回 0/1) 与 5.2+(返回 true/nil,code) 差异影响。
 local function is_pid_alive(pid)
     if not pid then return false end
     local f = io.open("/proc/" .. tostring(pid) .. "/stat", "r")
     if not f then return false end
     local line = f:read("*l")
     f:close()
-    return line ~= nil
+    if not line then return false end
+    -- 格式: pid (comm) state ...
+    local state = line:match("^%d+ %b() (%a)")
+    if state == "Z" then return false end
+    return true
 end
 
 local function acquire_lock()
@@ -68,7 +81,8 @@ local function acquire_lock()
     local my_pid = get_own_pid()
     if not my_pid then
         -- 极端情况下拿不到自身 PID（如 /proc 未挂载）：降级为无锁运行，
-        -- 避免把自己永久卡死在“扫描任务已在运行”里
+        -- 避免把自己永久卡死在“扫描任务已在运行”里。
+        -- 注意：此时 held_lock_pid 保持 nil，release_lock 不会误删别人的锁。
         log("[警告] 无法获取当前进程 PID，文件锁降级为无锁运行")
         return true
     end
@@ -77,19 +91,34 @@ local function acquire_lock()
     if not f then return false end
     f:write(tostring(my_pid))
     f:close()
+    held_lock_pid = my_pid
     return true
 end
 
 local function release_lock()
-    os.remove(LOCK_FILE)
+    -- 降级无锁模式：绝不删除锁文件，避免误删其他进程持有的锁
+    if not held_lock_pid then return end
+    local f = io.open(LOCK_FILE, "r")
+    if f then
+        local content = f:read("*a")
+        f:close()
+        if content then
+            content = content:gsub("%s+", "")
+            if content == tostring(held_lock_pid) then
+                os.remove(LOCK_FILE)
+            end
+        end
+    end
+    held_lock_pid = nil
 end
 
 -- ================= 精简频道名 =================
 local function get_pure_tvg_name(name)
     if not name or name:find("未识别") then return "" end
     local n = name:upper()
-    n = n:gsub("CCTV[%-%s]?4K", "PROTECTCCTVFOURK")
-    n = n:gsub("CCTV[%-%s]?5%+", "PROTECTCCTVFIVEPLUS")
+    -- 修复：兼容 "CCTV5 +"、"CCTV-5+"、"CCTV 5 +" 等带空格的写法
+    n = n:gsub("CCTV[%-%s]*4K", "PROTECTCCTVFOURK")
+    n = n:gsub("CCTV[%-%s]*5%s*%+", "PROTECTCCTVFIVEPLUS")
     n = n:gsub("爱上4K", "PROFOURK")
     n = n:gsub("茶频道", "PROCHA")
     local keywords = {"奥林匹克", "超高清", "高清", "标清", "频道", "字幕", "UHD", "FHD", "4K", "8K", "HD"}
@@ -211,7 +240,11 @@ local function get_interface_robust(name)
             local out = f:read("*all")
             f:close()
             info.ip = out:match("inet addr:(%d+%.%d+%.%d+%.%d+)") or out:match("inet (%d+%.%d+%.%d+%.%d+)")
-            info.device = name
+            -- 修复：只有在确实拿到 IP 时，才用 name 兜底 device，
+            -- 避免把未配置的接口名当成设备名。
+            if info.ip and info.ip ~= "0.0.0.0" and not info.device then
+                info.device = name
+            end
         end
     end
 
@@ -238,7 +271,8 @@ local function run_scan()
         return
     end
 
-    log("[网络] 接口: " .. net.device .. " | IP: " .. net.ip)
+    -- 修复：net.device 可能为 nil（ubus 返回 IP 但未带 l3_device，且未走 ifconfig 分支）
+    log("[网络] 接口: " .. (net.device or INTERFACE_NAME) .. " | IP: " .. net.ip)
 
     CITY_LIST = load_cities(CITY_FILE)
     local name_dict = load_dict(DICT_FILE)
@@ -299,20 +333,25 @@ local function run_scan()
                     udp:close()
                 else
                     local data = udp:receive()
-                    -- 检查 RTP (0x80) 或 TS 流同步头 ('G' / 0x47)
-                    if data and (string.byte(data, 1) == 0x80 or data:sub(1,1):find("\x47")) then
-                        r_found = r_found + 1
-                        total_found = total_found + 1
-                        local cname = name_dict[key] or ("未识别-" .. target_ip)
-                        local cat = get_category(cname)
-                        local q = get_quality(cname)
-                        table.insert(scan_results, {
-                            name = cname,
-                            url = PLAY_PREFIX .. key,
-                            cat_full = cat .. "-" .. q,
-                            sort_key = cat .. q .. cname
-                        })
-                        log("  >> [√] " .. cname .. " [" .. q .. "]")
+                    -- 修复：Lua 5.1 不支持 "\x47" 转义，改用字节比较。
+                    -- RTP 首字节为 0x80~0xBF（版本 2 + padding/extension/CSRC），
+                    -- TS 同步字节为 0x47。
+                    if data and #data > 0 then
+                        local b1 = data:byte(1)
+                        if b1 == 0x47 or (b1 >= 0x80 and b1 <= 0xBF) then
+                            r_found = r_found + 1
+                            total_found = total_found + 1
+                            local cname = name_dict[key] or ("未识别-" .. target_ip)
+                            local cat = get_category(cname)
+                            local q = get_quality(cname)
+                            table.insert(scan_results, {
+                                name = cname,
+                                url = PLAY_PREFIX .. key,
+                                cat_full = cat .. "-" .. q,
+                                sort_key = cat .. q .. cname
+                            })
+                            log("  >> [√] " .. cname .. " [" .. q .. "]")
+                        end
                     end
                     udp:close()
                 end
@@ -343,8 +382,13 @@ local function run_scan()
     local f_m3u = io.open(OUTPUT_M3U, "w")
     local f_m3u_hd = io.open(OUTPUT_M3U_HD, "w")
     local f_txt = io.open(OUTPUT_TXT, "w")
-    -- local bom = "\239\187\191"
 
+    -- 修复：输出文件打开失败必须显式报告，否则用户会以为扫描成功
+    if not f_m3u then log("[错误] 无法写入全量文件: " .. OUTPUT_M3U) end
+    if not f_m3u_hd then log("[错误] 无法写入高清文件: " .. OUTPUT_M3U_HD) end
+    if not f_txt then log("[错误] 无法写入 TXT 文件: " .. OUTPUT_TXT) end
+
+    -- local bom = "\239\187\191"
     -- if f_txt then
     --     f_txt:write(bom)
     -- end
@@ -394,18 +438,23 @@ local function run_scan()
             local p_list = { "[%[%%(（【《]?[Hh][Dd][%]%)）】》]?", "[%[%%(（【《]?高清[%]%)）】》]?",
                              "[%-%s/—_]+[Hh][Dd]", "[%-%s/—_]+高清" }
             for _, p in ipairs(p_list) do clean_name = clean_name:gsub(p, "") end
-            clean_name = clean_name:match("^[%s%p]*(.-)[%s%p]*$") or clean_name
+            -- 修复：原 match("^[%s%p]*(.-)[%s%p]*$") 会把 CCTV5+ 结尾的 "+" 当标点删掉，
+            -- 导致显示名与 tvg-name 不一致。此处只去首尾空白。
+            clean_name = clean_name:match("^%s*(.-)%s*$") or clean_name
 
-            local clean_cat = item.cat_full:gsub("%-高清", ""):gsub("%-HD", "")
+            -- 修复：统一取 "-" 前的分类名，避免 4K 与高清在 HD 文件里被拆成两个 group
+            local clean_cat = item.cat_full:match("^([^%-]+)") or item.cat_full
 
             f_m3u_hd:write(string.format('#EXTINF:-1%s%s group-title="%s",%s\n%s\n',
                 name_attr, logo_attr, clean_cat, clean_name, item.url))
         end
 
         if f_txt then
-            if item.cat_full ~= last_cat then
-                f_txt:write("\n" .. item.cat_full .. ",#genre#\n")
-                last_cat = item.cat_full
+            -- 修复：TXT genre 按主分类归并，不再按质量拆分成多个 genre
+            local genre = item.cat_full:match("^([^%-]+)") or item.cat_full
+            if genre ~= last_cat then
+                f_txt:write("\n" .. genre .. ",#genre#\n")
+                last_cat = genre
             end
             f_txt:write(item.name .. "," .. item.url .. "\n")
         end
@@ -417,6 +466,7 @@ local function run_scan()
 
     log("\n--------------- 统计报告 ---------------")
     log("扫描耗时: " .. os.difftime(os.time(), start_time) .. " 秒")
+    log("总计扫描地址: " .. total_scanned)
     log("总计发现有效频道: " .. total_found)
     for _, res in ipairs(range_stats) do
         log("  - 网段 [" .. res.range .. "] : 发现 " .. res.found .. " 个频道")
