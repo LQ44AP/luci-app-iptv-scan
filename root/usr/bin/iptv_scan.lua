@@ -442,16 +442,29 @@ local function run_scan()
             -- 导致显示名与 tvg-name 不一致。此处只去首尾空白。
             clean_name = clean_name:match("^%s*(.-)%s*$") or clean_name
 
-            -- 修复：统一取 "-" 前的分类名，避免 4K 与高清在 HD 文件里被拆成两个 group
-            local clean_cat = item.cat_full:match("^([^%-]+)") or item.cat_full
+            -- 修复：4K 保留独立分类，高清归主分类。
+            -- 例：央视频道-4K -> "央视频道-4K"（独立分组）
+            --     央视频道-高清 -> "央视频道"（合并进主分组）
+            local clean_cat
+            if item.cat_full:match("%-4K$") then
+                clean_cat = item.cat_full
+            else
+                clean_cat = item.cat_full:match("^([^%-]+)") or item.cat_full
+            end
 
             f_m3u_hd:write(string.format('#EXTINF:-1%s%s group-title="%s",%s\n%s\n',
                 name_attr, logo_attr, clean_cat, clean_name, item.url))
         end
 
         if f_txt then
-            -- 修复：TXT genre 按主分类归并，不再按质量拆分成多个 genre
-            local genre = item.cat_full:match("^([^%-]+)") or item.cat_full
+            -- 修复：TXT genre 与 HD 保持一致——4K 独立 genre，高清归主 genre，
+            -- 这样 4K 频道在 TXT 播放器里也有单独分组。
+            local genre
+            if item.cat_full:match("%-4K$") then
+                genre = item.cat_full
+            else
+                genre = item.cat_full:match("^([^%-]+)") or item.cat_full
+            end
             if genre ~= last_cat then
                 f_txt:write("\n" .. genre .. ",#genre#\n")
                 last_cat = genre
